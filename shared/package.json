@@ -1,0 +1,8 @@
+{
+  "name": "@apiprox/shared",
+  "version": "0.1.0",
+  "description": "Shared TypeScript models for APIprox",
+  "main": "src/models.ts",
+  "types": "src/models.ts",
+  "private": true
+}

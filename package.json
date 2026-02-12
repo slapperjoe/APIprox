@@ -1,0 +1,16 @@
+{
+  "name": "apiprox",
+  "version": "0.1.0",
+  "description": "HTTP/HTTPS Proxy and Mock Server for API Testing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri:dev": "cd src-tauri/webview && npm install && cd ../.. && npx tauri dev",
+    "tauri:build": "npm run prepare:sidecar && cd src-tauri/webview && npm install && npm run build && cd ../.. && npx tauri build",
+    "prepare:sidecar": "cd sidecar && npm install && npm run binary && cd .. && node scripts/prepare-sidecar-binary.cjs",
+    "build:sidecar": "cd sidecar && npm run build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}
