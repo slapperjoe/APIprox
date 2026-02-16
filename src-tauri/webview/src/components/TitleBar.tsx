@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
 
-const TitleBarContainer = styled.div`
+const TitleBarContainer = styled.div<{ $isMac: boolean }>`
   display: flex;
   align-items: center;
   height: 32px;
@@ -128,7 +128,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   useEffect(() => {
     const getPlatform = async () => {
       const p = await platform();
+      console.log('[TitleBar] Platform detected:', p);
       setIsMac(p === 'macos');
+      console.log('[TitleBar] isMac set to:', p === 'macos');
     };
     getPlatform();
     
@@ -158,8 +160,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   };
 
   if (isMac) {
+    console.log('[TitleBar] Rendering Mac controls');
     return (
-      <TitleBarContainer>
+      <TitleBarContainer $isMac={true}>
         <WindowControls $isMac={true}>
           <MacButton $color="#ff5f57" onClick={handleClose} />
           <MacButton $color="#febc2e" onClick={handleMinimize} />
@@ -185,8 +188,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({
     );
   }
 
+  console.log('[TitleBar] Rendering Windows controls');
   return (
-    <TitleBarContainer>
+    <TitleBarContainer $isMac={false}>
       <TitleBarContent $isMac={false}>
         <Title>{title}</Title>
         {sidecarStatus && (

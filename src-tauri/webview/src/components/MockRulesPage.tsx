@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MonacoRequestEditor } from '@apinox/request-editor';
 import { bridge } from '../utils/bridge';
 
 interface MockCondition {
@@ -448,22 +449,34 @@ export function MockRulesPage() {
               <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
                 Response Body
               </label>
-              <textarea
-                value={editingRule.responseBody}
-                onChange={(e) => setEditingRule({ ...editingRule, responseBody: e.target.value })}
-                rows={12}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: '#1e1e1e',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '12px',
-                  fontFamily: 'Consolas, monospace',
-                  resize: 'vertical'
-                }}
-              />
+              <div style={{ 
+                height: '300px', 
+                border: '1px solid #555',
+                borderRadius: '4px',
+                overflow: 'hidden'
+              }}>
+                <MonacoRequestEditor
+                  value={editingRule.responseBody}
+                  onChange={(value) => setEditingRule({ ...editingRule, responseBody: value })}
+                  language="xml"
+                  theme={{
+                    name: 'apiprox-dark',
+                    isLight: false,
+                    background: '#1e1e1e',
+                    foreground: '#d4d4d4',
+                    lineNumberColor: '#858585',
+                    selectionBackground: '#264f78',
+                    cursorColor: '#aeafad',
+                    inputBackground: '#3c3c3c',
+                    inputBorder: '#3c3c3c',
+                    buttonBackground: '#0e639c',
+                    buttonForeground: '#ffffff',
+                    buttonHoverBackground: '#1177bb',
+                    disabledForeground: '#656565',
+                    errorForeground: '#f48771'
+                  }}
+                />
+              </div>
             </div>
 
             {/* Actions */}

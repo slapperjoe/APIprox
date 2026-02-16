@@ -35,7 +35,7 @@ pub fn run() {
                     .join(if cfg!(target_os = "windows") {
                         "sidecar-x86_64-pc-windows-msvc.exe"
                     } else if cfg!(target_os = "macos") {
-                        "sidecar-x86_64-apple-darwin"
+                        "sidecar-aarch64-apple-darwin"
                     } else {
                         "sidecar-x86_64-unknown-linux-gnu"
                     })
@@ -47,7 +47,7 @@ pub fn run() {
                     .join(if cfg!(target_os = "windows") {
                         "sidecar-x86_64-pc-windows-msvc.exe"
                     } else if cfg!(target_os = "macos") {
-                        "sidecar-x86_64-apple-darwin"
+                        "sidecar-aarch64-apple-darwin"
                     } else {
                         "sidecar-x86_64-unknown-linux-gnu"
                     })
@@ -115,6 +115,7 @@ pub fn run() {
             
             Ok(())
         })
+        .plugin(tauri_plugin_os::init())
         .invoke_handler(tauri::generate_handler![get_sidecar_port])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

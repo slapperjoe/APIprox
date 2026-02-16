@@ -5,7 +5,7 @@
   "identifier": "app.apiprox.dev1",
   "build": {
     "frontendDist": "webview/dist",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:5174",
     "beforeDevCommand": "cd src-tauri/webview && npm run dev",
     "beforeBuildCommand": "cd src-tauri/webview && npm run build"
   },
@@ -50,6 +50,9 @@
       }
     }
   },
-  "plugins": {}
+  "plugins": {
+    "os": {
+      "all": true
+    }
+  }
 }
-

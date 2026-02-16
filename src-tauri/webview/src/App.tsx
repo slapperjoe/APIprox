@@ -7,10 +7,11 @@ import { MockRulesPage } from './components/MockRulesPage';
 import { BreakpointsPage } from './components/BreakpointsPage';
 import { FileWatcherPage } from './components/FileWatcherPage';
 import { SettingsPage } from './components/SettingsPage';
+import { HelpPage } from './components/HelpPage';
 import { TrafficLog } from './types';
 import { bridge } from './utils/bridge';
 
-type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings';
+type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('proxy');
@@ -68,7 +69,7 @@ function App() {
         alignItems: 'center',
         padding: '0 8px'
       }}>
-        {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'settings'] as Tab[]).map((tab) => (
+        {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'settings', 'help'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -157,6 +158,8 @@ function App() {
         {activeTab === 'filewatcher' && <FileWatcherPage />}
 
         {activeTab === 'settings' && <SettingsPage />}
+        
+        {activeTab === 'help' && <HelpPage />}
       </div>
     </div>
   );
