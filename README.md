@@ -284,13 +284,38 @@ Click "Clear" to remove all traffic entries from the viewer.
 - **Request Timeout**: Maximum time to wait for responses
 - **Max Body Size**: Maximum request/response body size to capture
 
-## Keyboard Shortcuts
+## Configuration Files
 
-- **Ctrl+R**: Toggle recording
-- **Ctrl+K**: Clear traffic log
-- **Ctrl+,**: Open settings
-- **Ctrl+S**: Save current rule
-- **Escape**: Close modal
+Rules and certificates are stored in `~/.apiprox/`:
+
+| File | Contents |
+|------|----------|
+| `mock-rules.json` | Mock response rules |
+| `replace-rules.json` | XPath/regex replace rules |
+| `breakpoint-rules.json` | Traffic breakpoint rules |
+| `ca.cer` | Root CA certificate (PEM) |
+| `ca.key` | CA private key (PEM) |
+
+## Architecture
+
+APIprox is built with **Tauri 2** (Rust backend) and **React/TypeScript** (webview frontend).
+
+- All proxy, mock, and certificate logic runs in Rust — no Node.js or external server
+- The proxy listens on a configurable port and handles HTTP/HTTPS (with TLS MITM)
+- Frontend communicates with the Rust backend via Tauri `invoke()` commands
+- Traffic events are streamed to the UI via Tauri event emitter
+
+## Building from Source
+
+```bash
+# Development (hot-reload)
+npm run tauri:dev
+
+# Production build
+npm run tauri:build
+```
+
+Requires: Rust toolchain, Node.js 18+, platform build tools (Xcode / Visual Studio Build Tools).
 
 ## Common Use Cases
 
@@ -447,5 +472,5 @@ A: Rules are stored in JSON format and can be created/modified programmatically.
 
 ---
 
-**Version**: 0.1.0  
-**Last Updated**: 2026-02-12
+**Version**: 0.2.0  
+**Last Updated**: 2026-03-04

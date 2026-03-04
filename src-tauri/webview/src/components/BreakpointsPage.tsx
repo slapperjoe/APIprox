@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { bridge } from '../utils/bridge';
+import { MonacoRequestEditorWithToolbar, HeadersPanel } from '@apinox/request-editor';
+import type { MonacoRequestEditorHandle } from '@apinox/request-editor';
 
 interface BreakpointCondition {
   type: 'url' | 'method' | 'statusCode' | 'header' | 'contains';
@@ -36,20 +39,25 @@ export function BreakpointsPage() {
   const [editingRule, setEditingRule] = useState<BreakpointRule | null>(null);
   const [editingTraffic, setEditingTraffic] = useState<PausedTraffic | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [editedBody, setEditedBody] = useState<string>('');
+  const [editedHeaders, setEditedHeaders] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadRules();
     loadQueue();
-    
-    // Poll queue every 2 seconds
-    const interval = setInterval(loadQueue, 2000);
-    return () => clearInterval(interval);
+
+    // Refresh queue when Rust emits breakpoint-paused event
+    const unlisten = listen<PausedTraffic[]>('breakpoint-paused', (event) => {
+      setQueue(event.payload);
+    });
+
+    return () => { unlisten.then(fn => fn()); };
   }, []);
 
   async function loadRules() {
     try {
       const response = await bridge.getBreakpointRules();
-      setRules(response.rules || []);
+      setRules(Array.isArray(response) ? response : (response.rules || []));
     } catch (error) {
       console.error('Failed to load breakpoint rules:', error);
     } finally {
@@ -60,7 +68,7 @@ export function BreakpointsPage() {
   async function loadQueue() {
     try {
       const response = await bridge.getBreakpointQueue();
-      setQueue(response.queue || []);
+      setQueue(Array.isArray(response) ? response : (response.queue || []));
     } catch (error) {
       console.error('Failed to load breakpoint queue:', error);
     }
@@ -165,6 +173,13 @@ export function BreakpointsPage() {
     setEditingRule({ ...editingRule, conditions: newConditions });
   }
 
+  function detectLanguage(headers: Record<string, string> = {}): string {
+    const ct = headers['content-type'] || headers['Content-Type'] || '';
+    if (ct.includes('xml') || ct.includes('soap')) return 'xml';
+    if (ct.includes('json')) return 'json';
+    return 'text';
+  }
+
   if (isLoading) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -213,7 +228,13 @@ export function BreakpointsPage() {
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
-                      onClick={() => setEditingTraffic(item)}
+                      onClick={() => {
+                        setEditingTraffic(item);
+                        const body = item.pauseType === 'request' ? item.requestBody : (item.responseBody ?? '');
+                        const headers = item.pauseType === 'request' ? (item.requestHeaders ?? {}) : (item.responseHeaders ?? {});
+                        setEditedBody(body);
+                        setEditedHeaders({ ...headers });
+                      }}
                       style={{
                         padding: '4px 12px',
                         background: '#0e639c',
@@ -608,27 +629,31 @@ export function BreakpointsPage() {
               {editingTraffic.method} {editingTraffic.url}
             </div>
 
+            {/* Headers */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc', fontWeight: 600 }}>
+                {editingTraffic.pauseType === 'request' ? 'Request Headers' : 'Response Headers'}
+              </label>
+              <div style={{ height: '160px', border: '1px solid #555', borderRadius: '4px', overflow: 'hidden' }}>
+                <HeadersPanel
+                  headers={editedHeaders}
+                  onChange={setEditedHeaders}
+                />
+              </div>
+            </div>
+
             {/* Body Editor */}
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc', fontWeight: 600 }}>
                 {editingTraffic.pauseType === 'request' ? 'Request Body' : 'Response Body'}
               </label>
-              <textarea
-                defaultValue={editingTraffic.pauseType === 'request' ? editingTraffic.requestBody : editingTraffic.responseBody}
-                id="body-editor"
-                rows={15}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: '#1e1e1e',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '12px',
-                  fontFamily: 'Consolas, monospace',
-                  resize: 'vertical'
-                }}
-              />
+              <div style={{ height: '320px', border: '1px solid #555', borderRadius: '4px', overflow: 'hidden' }}>
+                <MonacoRequestEditorWithToolbar
+                  value={editedBody}
+                  onChange={setEditedBody}
+                  language={detectLanguage(editedHeaders)}
+                />
+              </div>
             </div>
 
             {/* Actions */}
@@ -663,11 +688,10 @@ export function BreakpointsPage() {
               </button>
               <button
                 onClick={() => {
-                  const body = (document.getElementById('body-editor') as HTMLTextAreaElement).value;
-                  const modifications = editingTraffic.pauseType === 'request' 
-                    ? { body } 
-                    : { body };
-                  handleContinue(editingTraffic.id, modifications);
+                  handleContinue(editingTraffic.id, {
+                    body: editedBody,
+                    headers: editedHeaders,
+                  });
                 }}
                 style={{
                   padding: '8px 16px',

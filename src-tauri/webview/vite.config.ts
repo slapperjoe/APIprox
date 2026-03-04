@@ -8,6 +8,12 @@ export default defineConfig({
     server: {
         port: 5174,
         strictPort: true,
+        fs: {
+            // Allow serving files from outside the project root.
+            // Needed for the symlinked @apinox/request-editor package (Monaco editor).
+            // Safe here because Vite only runs locally for desktop app development.
+            strict: false,
+        },
     },
     envPrefix: ['VITE_', 'TAURI_'],
     build: {

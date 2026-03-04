@@ -1,34 +1,119 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { bridge } from '../utils/bridge';
 import { ReplaceRule } from '../types';
 
 export function RulesPage() {
   const [rules, setRules] = useState<ReplaceRule[]>([]);
   const [showAddRule, setShowAddRule] = useState(false);
+  const [editingRule, setEditingRule] = useState<ReplaceRule | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    matchText: '',
+    replaceWith: '',
+    target: 'both' as ReplaceRule['target'],
+    isRegex: false,
+    xpath: '',
+  });
 
-  function handleAddRule() {
-    const newRule: ReplaceRule = {
-      id: `rule-${Date.now()}`,
-      name: 'New Rule',
-      enabled: true,
-      matchText: '',
-      replaceWith: '',
-      target: 'both',
-      isRegex: false
+  useEffect(() => {
+    loadRules();
+  }, []);
+
+  async function loadRules() {
+    try {
+      const loaded = await bridge.getReplaceRules();
+      setRules(loaded);
+    } catch (e: any) {
+      setError(String(e));
+    }
+  }
+
+  function openAddModal() {
+    setForm({ name: '', matchText: '', replaceWith: '', target: 'both', isRegex: false, xpath: '' });
+    setEditingRule(null);
+    setShowAddRule(true);
+  }
+
+  function openEditModal(rule: ReplaceRule) {
+    setForm({
+      name: rule.name,
+      matchText: rule.matchText,
+      replaceWith: rule.replaceWith,
+      target: rule.target,
+      isRegex: rule.isRegex,
+      xpath: rule.xpath ?? '',
+    });
+    setEditingRule(rule);
+    setShowAddRule(true);
+  }
+
+  async function handleSaveRule() {
+    if (!form.name.trim()) {
+      setError('Name is required');
+      return;
+    }
+    const ruleData: Omit<ReplaceRule, 'id'> = {
+      name: form.name.trim(),
+      enabled: editingRule ? editingRule.enabled : true,
+      matchText: form.matchText,
+      replaceWith: form.replaceWith,
+      target: form.target,
+      isRegex: form.isRegex,
+      ...(form.xpath.trim() ? { xpath: form.xpath.trim() } : {}),
     };
-    setRules([...rules, newRule]);
-    setShowAddRule(false);
+    try {
+      if (editingRule) {
+        await bridge.updateReplaceRule(editingRule.id, { ...ruleData, id: editingRule.id });
+      } else {
+        await bridge.addReplaceRule(ruleData);
+      }
+      await loadRules();
+      setShowAddRule(false);
+      setEditingRule(null);
+    } catch (e: any) {
+      setError(String(e));
+    }
   }
 
-  function handleDeleteRule(id: string) {
-    setRules(rules.filter(r => r.id !== id));
+  async function handleDeleteRule(id: string) {
+    try {
+      await bridge.deleteReplaceRule(id);
+      setRules(rules.filter(r => r.id !== id));
+    } catch (e: any) {
+      setError(String(e));
+    }
   }
 
-  function handleToggleRule(id: string) {
-    setRules(rules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
+  async function handleToggleRule(id: string) {
+    const rule = rules.find(r => r.id === id);
+    if (!rule) return;
+    try {
+      await bridge.updateReplaceRule(id, { ...rule, enabled: !rule.enabled });
+      await loadRules();
+    } catch (e: any) {
+      setError(String(e));
+    }
   }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '6px 8px',
+    background: '#3c3c3c',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    color: '#cccccc',
+    fontSize: '13px',
+    boxSizing: 'border-box',
+  };
 
   return (
     <div style={{ padding: '20px' }}>
+      {error && (
+        <div style={{ padding: '8px 12px', background: '#5a1d1d', borderRadius: '4px', color: '#f48771', marginBottom: '12px', fontSize: '13px' }}>
+          {error}
+        </div>
+      )}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -39,7 +124,7 @@ export function RulesPage() {
           Replace Rules
         </h2>
         <button
-          onClick={() => setShowAddRule(true)}
+          onClick={openAddModal}
           style={{
             padding: '8px 16px',
             background: '#0e639c',
@@ -96,20 +181,36 @@ export function RulesPage() {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDeleteRule(rule.id)}
-                  style={{
-                    padding: '4px 12px',
-                    background: 'transparent',
-                    border: '1px solid #555',
-                    borderRadius: '4px',
-                    color: '#cccccc',
-                    fontSize: '12px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Delete
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => openEditModal(rule)}
+                    style={{
+                      padding: '4px 12px',
+                      background: 'transparent',
+                      border: '1px solid #555',
+                      borderRadius: '4px',
+                      color: '#cccccc',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRule(rule.id)}
+                    style={{
+                      padding: '4px 12px',
+                      background: 'transparent',
+                      border: '1px solid #555',
+                      borderRadius: '4px',
+                      color: '#cccccc',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
                 <div>
@@ -150,10 +251,69 @@ export function RulesPage() {
             maxWidth: '500px',
             width: '90%'
           }}>
-            <h3 style={{ margin: '0 0 16px 0' }}>Add Replace Rule</h3>
-            <p style={{ color: '#858585', fontSize: '13px', margin: '0 0 20px 0' }}>
-              Rules will be editable after creation
-            </p>
+            <h3 style={{ margin: '0 0 16px 0' }}>{editingRule ? 'Edit Replace Rule' : 'Add Replace Rule'}</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+              <label style={{ fontSize: '13px' }}>
+                <div style={{ color: '#858585', marginBottom: '4px' }}>Name *</div>
+                <input
+                  autoFocus
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  style={inputStyle}
+                  placeholder="e.g. Mask SSN"
+                />
+              </label>
+              <label style={{ fontSize: '13px' }}>
+                <div style={{ color: '#858585', marginBottom: '4px' }}>Match Text</div>
+                <input
+                  value={form.matchText}
+                  onChange={e => setForm(f => ({ ...f, matchText: e.target.value }))}
+                  style={inputStyle}
+                  placeholder={form.isRegex ? 'e.g. \\d{3}-\\d{2}-\\d{4}' : 'e.g. secret-value'}
+                />
+              </label>
+              <label style={{ fontSize: '13px' }}>
+                <div style={{ color: '#858585', marginBottom: '4px' }}>Replace With</div>
+                <input
+                  value={form.replaceWith}
+                  onChange={e => setForm(f => ({ ...f, replaceWith: e.target.value }))}
+                  style={inputStyle}
+                  placeholder="e.g. XXX-XX-XXXX"
+                />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                <label>
+                  <div style={{ color: '#858585', marginBottom: '4px' }}>Target</div>
+                  <select
+                    value={form.target}
+                    onChange={e => setForm(f => ({ ...f, target: e.target.value as ReplaceRule['target'] }))}
+                    style={{ ...inputStyle, appearance: 'auto' }}
+                  >
+                    <option value="both">Both</option>
+                    <option value="request">Request</option>
+                    <option value="response">Response</option>
+                  </select>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '20px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.isRegex}
+                    onChange={e => setForm(f => ({ ...f, isRegex: e.target.checked }))}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  Use Regex
+                </label>
+              </div>
+              <label style={{ fontSize: '13px' }}>
+                <div style={{ color: '#858585', marginBottom: '4px' }}>XPath (optional)</div>
+                <input
+                  value={form.xpath}
+                  onChange={e => setForm(f => ({ ...f, xpath: e.target.value }))}
+                  style={inputStyle}
+                  placeholder="e.g. //Customer/SSN"
+                />
+              </label>
+            </div>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowAddRule(false)}
@@ -170,7 +330,7 @@ export function RulesPage() {
                 Cancel
               </button>
               <button
-                onClick={handleAddRule}
+                onClick={handleSaveRule}
                 style={{
                   padding: '8px 16px',
                   background: '#0e639c',
@@ -181,7 +341,7 @@ export function RulesPage() {
                   cursor: 'pointer'
                 }}
               >
-                Create
+                {editingRule ? 'Save' : 'Create'}
               </button>
             </div>
           </div>

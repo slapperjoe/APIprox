@@ -41,9 +41,6 @@
       "icons/icon.ico"
     ],
     "resources": {},
-    "externalBin": [
-      "../sidecar-bundle/sidecar"
-    ],
     "windows": {
       "nsis": {
         "compression": "lzma"

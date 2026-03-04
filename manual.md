@@ -15,12 +15,41 @@
 | **Mock** | Return predefined responses (no forwarding) |
 | **Both** | Check mocks first, forward if no match |
 
-## HTTPS Setup
+## HTTPS Interception Setup
 
-1. Settings → Certificate Management
-2. Click "Generate New Certificate"
-3. Click "Trust Certificate" (admin required)
-4. Verify status shows "✓ Trusted"
+APIprox uses TLS MITM (Man-in-the-Middle) to decrypt HTTPS traffic. It generates signed certificates on-the-fly for each domain using a local CA that you install once.
+
+### Step-by-step
+
+1. **Generate the CA Certificate**
+   - Go to **Settings → Certificate Management**
+   - Click **"Generate New Certificate"**
+
+2. **Trust the Certificate** (requires admin/sudo)
+   - Click **"Trust Certificate"**
+   - Enter your system password when prompted
+   - Platform-specific:
+     - **macOS**: Added to System Keychain via `security` command
+     - **Windows**: Added to Trusted Root store via `certutil`
+     - **Linux**: Copied to `/usr/local/share/ca-certificates/` and `update-ca-certificates` is run
+
+3. **Firefox (always manual)**
+   - Firefox uses its own certificate store
+   - Settings → Export Certificate → save `ca.cer`
+   - Firefox → Settings → Privacy & Security → View Certificates → Authorities → Import
+   - Check "Trust this CA to identify websites"
+
+4. **Verify**
+   - Certificate status should show **✓ Trusted**
+   - Start the proxy and browse — HTTPS traffic will appear in the Traffic tab
+
+### How it works
+
+When a client connects via CONNECT (HTTPS tunnel), APIprox:
+1. Acknowledges the tunnel
+2. Performs a TLS handshake with the client, presenting a certificate signed by the local CA for that domain
+3. Connects upstream using a real TLS connection
+4. Decrypts and re-encrypts traffic, applying replace rules and mock matching
 
 ## Replace Rules
 
@@ -115,10 +144,11 @@ Response Body:
 
 ## Configuration Files
 
-- **Mock Rules**: `~/.apiprox/mock-rules.jsonc`
-- **Replace Rules**: `~/.apiprox/config.jsonc` → `replaceRules`
-- **Certificate**: `~/.apiprox/certs/apiprox-ca.crt`
-- **Settings**: `~/.apiprox/config.jsonc`
+- **Mock Rules**: `~/.apiprox/mock-rules.json`
+- **Replace Rules**: `~/.apiprox/replace-rules.json`
+- **Breakpoint Rules**: `~/.apiprox/breakpoint-rules.json`
+- **CA Certificate**: `~/.apiprox/ca.cer`
+- **CA Private Key**: `~/.apiprox/ca.key`
 
 ## Tips
 

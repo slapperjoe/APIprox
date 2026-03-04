@@ -1,122 +1,156 @@
-use log::{info, error};
-use tauri::{Manager, Emitter};
-use std::process::{Command, Stdio};
-use std::sync::Mutex;
-use tauri::State;
+use log::info;
+use std::sync::Arc;
+use tauri::Manager;
 
-struct SidecarState {
-    port: Mutex<Option<u16>>,
-}
+pub mod models;
+pub mod proxy;
+pub mod mock;
+pub mod replacer;
+pub mod breakpoint;
+pub mod filewatcher;
+pub mod certificates;
+pub mod storage;
+pub mod commands;
 
-#[tauri::command]
-fn get_sidecar_port(state: State<SidecarState>) -> Option<u16> {
-    *state.port.lock().unwrap()
+use certificates::manager::CertManager;
+use storage::rules::RulesStorage;
+
+/// Global app state — all services live here and are managed by Tauri.
+pub struct AppState {
+    pub proxy: proxy::state::SharedProxyState,
+    pub mock: mock::state::SharedMockState,
+    pub replacer: replacer::service::SharedReplacerService,
+    pub breakpoint: breakpoint::service::SharedBreakpointService,
+    pub filewatcher: filewatcher::service::SharedFileWatcherService,
+    pub storage: Arc<RulesStorage>,
+    pub cert_manager: Arc<CertManager>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(SidecarState {
-            port: Mutex::new(None),
-        })
         .setup(|app| {
             info!("APIprox starting (version: {})", app.package_info().version);
-            
-            // Get the sidecar binary path
-            // In dev mode, use the project root sidecar-bundle directory
-            // In production, use the resource directory
-            let sidecar_binary = if cfg!(debug_assertions) {
-                // Dev mode: Use project root
-                std::env::current_dir()
-                    .expect("Failed to get current dir")
-                    .parent() // Go up from src-tauri to project root
-                    .expect("Failed to get parent dir")
-                    .join("sidecar-bundle")
-                    .join(if cfg!(target_os = "windows") {
-                        "sidecar-x86_64-pc-windows-msvc.exe"
-                    } else if cfg!(target_os = "macos") {
-                        "sidecar-aarch64-apple-darwin"
-                    } else {
-                        "sidecar-x86_64-unknown-linux-gnu"
-                    })
-            } else {
-                // Production mode: Use resource directory
-                app.path().resource_dir()
-                    .expect("Failed to get resource dir")
-                    .join("sidecar-bundle")
-                    .join(if cfg!(target_os = "windows") {
-                        "sidecar-x86_64-pc-windows-msvc.exe"
-                    } else if cfg!(target_os = "macos") {
-                        "sidecar-aarch64-apple-darwin"
-                    } else {
-                        "sidecar-x86_64-unknown-linux-gnu"
-                    })
-            };
 
-            info!("Starting sidecar from: {:?}", sidecar_binary);
+            // Resolve ~/.apiprox config directory
+            let config_dir = dirs_next::home_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join(".apiprox");
+            std::fs::create_dir_all(&config_dir).ok();
 
-            // Verify binary exists
-            if !sidecar_binary.exists() {
-                error!("Sidecar binary not found at: {:?}", sidecar_binary);
-                return Ok(());
+            let storage = Arc::new(RulesStorage::new(config_dir.clone()));
+
+            // Build services, pre-loading persisted rules
+            let replacer = replacer::service::new_shared();
+            {
+                let mut svc = replacer.lock().unwrap();
+                for rule in storage.load_replace_rules() {
+                    svc.add_rule(rule);
+                }
             }
 
-            // Start the sidecar process
-            let mut child = Command::new(&sidecar_binary)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .expect("Failed to start sidecar");
-
-            // Read the port from stdout
-            if let Some(stdout) = child.stdout.take() {
-                use std::io::{BufRead, BufReader};
-                let reader = BufReader::new(stdout);
-                
-                // Get handles before moving into thread
-                let app_handle = app.handle().clone();
-                
-                std::thread::spawn(move || {
-                    for line in reader.lines() {
-                        if let Ok(line) = line {
-                            println!("[Sidecar] {}", line);
-                            
-                            // Look for SIDECAR_PORT:XXXX
-                            if line.starts_with("SIDECAR_PORT:") {
-                                if let Ok(port) = line.replace("SIDECAR_PORT:", "").trim().parse::<u16>() {
-                                    info!("Sidecar started on port: {}", port);
-                                    
-                                    // Store port in state
-                                    let state = app_handle.state::<SidecarState>();
-                                    *state.port.lock().unwrap() = Some(port);
-                                    
-                                    // Send port to webview - try different window labels
-                                    let window = app_handle.get_webview_window("main")
-                                        .or_else(|| app_handle.webview_windows().values().next().cloned());
-                                    
-                                    if let Some(window) = window {
-                                        info!("Emitting sidecar-port event to window: {:?}", window.label());
-                                        match window.emit("sidecar-port", port) {
-                                            Ok(_) => info!("Successfully emitted sidecar-port event"),
-                                            Err(e) => error!("Failed to emit sidecar-port event: {:?}", e),
-                                        }
-                                    } else {
-                                        error!("No webview window found to emit sidecar-port event!");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
+            let breakpoint = breakpoint::service::new_shared();
+            {
+                let mut svc = breakpoint.blocking_lock();
+                svc.set_rules(storage.load_breakpoint_rules());
             }
-            
-            // Keep child process handle so it doesn't get killed
-            std::mem::forget(child);
-            
+
+            let filewatcher = filewatcher::service::new_shared();
+            {
+                let mut svc = filewatcher.blocking_lock();
+                for watch in storage.load_file_watches() {
+                    svc.add_watch(watch);
+                }
+            }
+
+            let mock = mock::state::new_shared();
+            {
+                let mut state = mock.blocking_lock();
+                state.config.rules = storage.load_mock_rules();
+            }
+
+            // Ensure CA cert exists
+            let cert_manager = Arc::new(CertManager::new(config_dir.clone()));
+            if !cert_manager.info().exists {
+                if let Err(e) = cert_manager.generate() {
+                    log::warn!("[Setup] Failed to generate CA certificate: {}", e);
+                }
+            }
+
+            // Register global state
+            app.manage(AppState {
+                proxy: proxy::state::new_shared(),
+                mock,
+                replacer,
+                breakpoint,
+                filewatcher: filewatcher.clone(),
+                storage,
+                cert_manager,
+            });
+
+            // Re-spawn file watchers for any persisted watches
+            {
+                let watches = filewatcher.blocking_lock().get_watches();
+                for watch in watches {
+                    commands::filewatcher::spawn_watcher(watch, filewatcher.clone(), app.handle().clone());
+                }
+            }
+
             Ok(())
         })
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Debug)
+                .build(),
+        )
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
-        .invoke_handler(tauri::generate_handler![get_sidecar_port])
+        .invoke_handler(tauri::generate_handler![
+            // Proxy
+            commands::proxy::start_proxy,
+            commands::proxy::stop_proxy,
+            commands::proxy::get_proxy_status,
+            // Mock server
+            commands::mock::start_mock,
+            commands::mock::stop_mock,
+            commands::mock::get_mock_status,
+            commands::mock::get_mock_rules,
+            commands::mock::add_mock_rule,
+            commands::mock::update_mock_rule,
+            commands::mock::delete_mock_rule,
+            commands::mock::set_mock_record_mode,
+            commands::mock::save_mock_rules,
+            // Replace rules
+            commands::replacer::get_replace_rules,
+            commands::replacer::add_replace_rule,
+            commands::replacer::update_replace_rule,
+            commands::replacer::delete_replace_rule,
+            // Breakpoints
+            commands::breakpoint::get_breakpoint_rules,
+            commands::breakpoint::set_breakpoint_rules,
+            commands::breakpoint::add_breakpoint_rule,
+            commands::breakpoint::delete_breakpoint_rule,
+            commands::breakpoint::get_paused_traffic,
+            commands::breakpoint::continue_breakpoint,
+            commands::breakpoint::drop_breakpoint,
+            // File watcher
+            commands::filewatcher::get_file_watches,
+            commands::filewatcher::add_file_watch,
+            commands::filewatcher::update_file_watch,
+            commands::filewatcher::delete_file_watch,
+            commands::filewatcher::get_watcher_events,
+            commands::filewatcher::clear_watcher_events,
+            // Certificates
+            commands::certificates::get_certificate_info,
+            commands::certificates::generate_certificate,
+            commands::certificates::trust_certificate,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

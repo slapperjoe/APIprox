@@ -65,22 +65,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
           <MonacoResponseViewer
             value={log.requestBody || '(empty)'}
             language={requestLanguage}
-            theme={{
-              name: 'apiprox-dark',
-              isLight: false,
-              background: '#1e1e1e',
-              foreground: '#d4d4d4',
-              lineNumberColor: '#858585',
-              selectionBackground: '#264f78',
-              cursorColor: '#aeafad',
-              inputBackground: '#3c3c3c',
-              inputBorder: '#3c3c3c',
-              buttonBackground: '#0e639c',
-              buttonForeground: '#ffffff',
-              buttonHoverBackground: '#1177bb',
-              disabledForeground: '#656565',
-              errorForeground: '#f48771'
-            }}
           />
         )}
 
@@ -88,22 +72,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
           <MonacoResponseViewer
             value={log.responseBody || '(empty)'}
             language={responseLanguage}
-            theme={{
-              name: 'apiprox-dark',
-              isLight: false,
-              background: '#1e1e1e',
-              foreground: '#d4d4d4',
-              lineNumberColor: '#858585',
-              selectionBackground: '#264f78',
-              cursorColor: '#aeafad',
-              inputBackground: '#3c3c3c',
-              inputBorder: '#3c3c3c',
-              buttonBackground: '#0e639c',
-              buttonForeground: '#ffffff',
-              buttonHoverBackground: '#1177bb',
-              disabledForeground: '#656565',
-              errorForeground: '#f48771'
-            }}
           />
         )}
 
@@ -155,22 +123,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
           <MonacoResponseViewer
             value={JSON.stringify(log, null, 2)}
             language="json"
-            theme={{
-              name: 'apiprox-dark',
-              isLight: false,
-              background: '#1e1e1e',
-              foreground: '#d4d4d4',
-              lineNumberColor: '#858585',
-              selectionBackground: '#264f78',
-              cursorColor: '#aeafad',
-              inputBackground: '#3c3c3c',
-              inputBorder: '#3c3c3c',
-              buttonBackground: '#0e639c',
-              buttonForeground: '#ffffff',
-              buttonHoverBackground: '#1177bb',
-              disabledForeground: '#656565',
-              errorForeground: '#f48771'
-            }}
           />
         )}
       </div>

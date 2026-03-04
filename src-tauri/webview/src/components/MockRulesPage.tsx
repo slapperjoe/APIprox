@@ -32,7 +32,7 @@ export function MockRulesPage() {
   async function loadRules() {
     try {
       const response = await bridge.getMockRules();
-      setRules(response.rules || []);
+      setRules(Array.isArray(response) ? response : (response.rules || []));
     } catch (error) {
       console.error('Failed to load mock rules:', error);
     } finally {
@@ -42,7 +42,7 @@ export function MockRulesPage() {
 
   async function handleAddRule() {
     const newRule: MockRule = {
-      id: `mock-${Date.now()}`,
+      id: '',
       name: 'New Mock Rule',
       enabled: true,
       conditions: [{ type: 'url', pattern: '/api/*', isRegex: false }],
@@ -57,7 +57,7 @@ export function MockRulesPage() {
     if (!editingRule) return;
 
     try {
-      const isNew = !rules.find(r => r.id === editingRule.id);
+      const isNew = !editingRule.id || !rules.find(r => r.id === editingRule.id);
       
       if (isNew) {
         await bridge.addMockRule(editingRule);
@@ -457,24 +457,8 @@ export function MockRulesPage() {
               }}>
                 <MonacoRequestEditor
                   value={editingRule.responseBody}
-                  onChange={(value) => setEditingRule({ ...editingRule, responseBody: value })}
+                  onChange={(value: string) => setEditingRule({ ...editingRule, responseBody: value })}
                   language="xml"
-                  theme={{
-                    name: 'apiprox-dark',
-                    isLight: false,
-                    background: '#1e1e1e',
-                    foreground: '#d4d4d4',
-                    lineNumberColor: '#858585',
-                    selectionBackground: '#264f78',
-                    cursorColor: '#aeafad',
-                    inputBackground: '#3c3c3c',
-                    inputBorder: '#3c3c3c',
-                    buttonBackground: '#0e639c',
-                    buttonForeground: '#ffffff',
-                    buttonHoverBackground: '#1177bb',
-                    disabledForeground: '#656565',
-                    errorForeground: '#f48771'
-                  }}
                 />
               </div>
             </div>
