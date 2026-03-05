@@ -71,6 +71,72 @@ export class MockService extends EventEmitter {
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
+    /** Generate a random UUID v4 */
+    private generateUUID(): string {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    /**
+     * Process Mockoon-style template variables in a response body.
+     *
+     * Supported helpers:
+     *   {{now}}                  – ISO-8601 timestamp
+     *   {{now 'timestamp'}}      – Unix ms timestamp
+     *   {{now 'date'}}           – locale date string
+     *   {{now 'time'}}           – locale time string
+     *   {{uuid}}                 – random UUID v4
+     *   {{randomInt min max}}    – random integer between min and max (inclusive)
+     *   {{randomElement a b c}}  – pick one element at random
+     *   {{requestHeader 'name'}} – value of an incoming request header
+     *   {{requestBody}}          – raw request body
+     */
+    private processTemplateVariables(
+        template: string,
+        reqHeaders: Record<string, string | string[] | undefined>,
+        reqBody: string
+    ): string {
+        return template.replace(/\{\{([^}]+)\}\}/g, (_match, expression: string) => {
+            const parts = expression.trim().split(/\s+/);
+            const helper = parts[0].toLowerCase();
+
+            switch (helper) {
+                case 'now': {
+                    const fmt = (parts[1] || '').replace(/^['"]|['"]$/g, '').toLowerCase();
+                    if (fmt === 'timestamp') return String(Date.now());
+                    if (fmt === 'date') return new Date().toLocaleDateString();
+                    if (fmt === 'time') return new Date().toLocaleTimeString();
+                    return new Date().toISOString();
+                }
+                case 'uuid':
+                    return this.generateUUID();
+                case 'randomint': {
+                    const min = parseInt(parts[1] || '0', 10);
+                    const max = parseInt(parts[2] || '100', 10);
+                    return String(Math.floor(Math.random() * (max - min + 1)) + min);
+                }
+                case 'randomelement': {
+                    const items = parts.slice(1).map(s => s.replace(/^['"]|['"]$/g, ''));
+                    if (items.length === 0) return '';
+                    return items[Math.floor(Math.random() * items.length)];
+                }
+                case 'requestheader': {
+                    const name = (parts[1] || '').replace(/^['"]|['"]$/g, '').toLowerCase();
+                    if (!name) return '';
+                    const val = reqHeaders[name];
+                    return Array.isArray(val) ? val[0] : String(val || '');
+                }
+                case 'requestbody':
+                    return reqBody;
+                default:
+                    return _match; // leave unknown helpers unchanged
+            }
+        });
+    }
+
     public updateConfig(newConfig: Partial<MockConfig>) {
         this.logDebug(`[MockService] updateConfig called with: ${JSON.stringify(newConfig)}`);
         this.config = { ...this.config, ...newConfig };
@@ -298,8 +364,14 @@ export class MockService extends EventEmitter {
                 ...rule.responseHeaders
             };
 
+            const responseBody = this.processTemplateVariables(
+                rule.responseBody,
+                eventInfo.requestHeaders,
+                eventInfo.requestBody
+            );
+
             res.writeHead(rule.statusCode, headers);
-            res.end(rule.responseBody);
+            res.end(responseBody);
 
             // Emit mock hit event
             const event: MockEvent = {
@@ -312,7 +384,7 @@ export class MockService extends EventEmitter {
                 requestBody: eventInfo.requestBody,
                 status: rule.statusCode,
                 responseHeaders: headers,
-                responseBody: rule.responseBody,
+                responseBody,
                 duration: (Date.now() - eventInfo.startTime) / 1000,
                 matchedRule: rule.name
             };
@@ -369,12 +441,18 @@ export class MockService extends EventEmitter {
                         ...matchedRule.responseHeaders
                     };
 
+                    const responseBody = this.processTemplateVariables(
+                        matchedRule.responseBody,
+                        req.headers as Record<string, string | string[] | undefined>,
+                        reqBody
+                    );
+
                     res.writeHead(matchedRule.statusCode, headers);
-                    res.end(matchedRule.responseBody);
+                    res.end(responseBody);
 
                     event.status = matchedRule.statusCode;
                     event.responseHeaders = headers;
-                    event.responseBody = matchedRule.responseBody;
+                    event.responseBody = responseBody;
                     event.duration = (Date.now() - startTime) / 1000;
 
                     this.emit('log', event);
@@ -475,6 +553,19 @@ export class MockService extends EventEmitter {
                     'i'
                 );
                 return templateRegex.test(body);
+            case 'method':
+                textToMatch = (req.method || 'GET').toUpperCase();
+                break;
+            case 'queryParam': {
+                // condition.headerName holds the query parameter name; condition.pattern is the expected value
+                if (!condition.headerName) return false;
+                const rawUrl = req.url || '/';
+                const qIndex = rawUrl.indexOf('?');
+                if (qIndex === -1) return false;
+                const params = new URLSearchParams(rawUrl.slice(qIndex + 1));
+                textToMatch = params.get(condition.headerName) || '';
+                break;
+            }
             default:
                 return false;
         }

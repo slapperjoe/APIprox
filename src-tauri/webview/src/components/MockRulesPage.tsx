@@ -3,9 +3,10 @@ import { MonacoRequestEditor } from '@apinox/request-editor';
 import { bridge } from '../utils/bridge';
 
 interface MockCondition {
-  type: 'url' | 'xpath' | 'soapAction' | 'header' | 'method';
+  type: 'url' | 'xpath' | 'soapAction' | 'header' | 'method' | 'queryParam' | 'contains';
   pattern: string;
   isRegex?: boolean;
+  /** Header name (for "header") or query param name (for "queryParam") */
   headerName?: string;
 }
 
@@ -17,13 +18,110 @@ interface MockRule {
   statusCode: number;
   responseBody: string;
   responseHeaders?: Record<string, string>;
+  contentType?: string;
   delayMs?: number;
+}
+
+const CONTENT_TYPES = [
+  { label: 'XML (text/xml)', value: 'text/xml; charset=utf-8' },
+  { label: 'JSON (application/json)', value: 'application/json; charset=utf-8' },
+  { label: 'Plain text (text/plain)', value: 'text/plain; charset=utf-8' },
+  { label: 'HTML (text/html)', value: 'text/html; charset=utf-8' },
+  { label: 'Custom…', value: '' },
+];
+
+function contentTypeToLanguage(ct: string): string {
+  if (!ct) return 'plaintext';
+  if (ct.includes('json')) return 'json';
+  if (ct.includes('xml')) return 'xml';
+  if (ct.includes('html')) return 'html';
+  return 'plaintext';
+}
+
+/** Inline key-value header editor */
+function HeadersEditor({
+  headers,
+  onChange,
+}: {
+  headers: Record<string, string>;
+  onChange: (h: Record<string, string>) => void;
+}) {
+  // Use an internal array of {key,value} pairs to avoid duplicate-key collisions
+  const [pairs, setPairs] = React.useState<{ key: string; value: string }[]>(
+    () => Object.entries(headers).map(([key, value]) => ({ key, value }))
+  );
+
+  // Sync outward whenever pairs change
+  function update(next: { key: string; value: string }[]) {
+    setPairs(next);
+    const record: Record<string, string> = {};
+    next.forEach(({ key, value }) => { if (key !== '') record[key] = value; });
+    onChange(record);
+  }
+
+  function setKey(i: number, newKey: string) {
+    update(pairs.map((p, idx) => idx === i ? { ...p, key: newKey } : p));
+  }
+
+  function setValue(i: number, newVal: string) {
+    update(pairs.map((p, idx) => idx === i ? { ...p, value: newVal } : p));
+  }
+
+  function remove(i: number) {
+    update(pairs.filter((_, idx) => idx !== i));
+  }
+
+  function add() {
+    update([...pairs, { key: '', value: '' }]);
+  }
+
+  const inputStyle: React.CSSProperties = {
+    padding: '5px 8px',
+    background: '#3c3c3c',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    color: '#cccccc',
+    fontSize: '12px',
+    width: '100%',
+  };
+
+  return (
+    <div>
+      {pairs.map(({ key, value }, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 32px', gap: '6px', marginBottom: '6px' }}>
+          <input
+            style={inputStyle}
+            placeholder="Header name"
+            value={key}
+            onChange={(e) => setKey(i, e.target.value)}
+          />
+          <input
+            style={inputStyle}
+            placeholder="Value"
+            value={value}
+            onChange={(e) => setValue(i, e.target.value)}
+          />
+          <button
+            onClick={() => remove(i)}
+            style={{ padding: '4px', background: '#5a2e2e', border: 'none', borderRadius: '4px', color: '#ff6b6b', fontSize: '12px', cursor: 'pointer' }}
+          >✕</button>
+        </div>
+      ))}
+      <button
+        onClick={add}
+        style={{ padding: '4px 10px', background: '#0e639c', border: 'none', borderRadius: '3px', color: 'white', fontSize: '11px', cursor: 'pointer' }}
+      >
+        + Add Header
+      </button>
+    </div>
+  );
 }
 
 export function MockRulesPage() {
   const [rules, setRules] = useState<MockRule[]>([]);
   const [editingRule, setEditingRule] = useState<MockRule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [customContentType, setCustomContentType] = useState('');
 
   useEffect(() => {
     loadRules();
@@ -47,9 +145,12 @@ export function MockRulesPage() {
       enabled: true,
       conditions: [{ type: 'url', pattern: '/api/*', isRegex: false }],
       statusCode: 200,
+      contentType: 'text/xml; charset=utf-8',
       responseBody: '<?xml version="1.0"?>\n<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">\n  <soap:Body>\n    <Response>\n      <!-- Mock response -->\n    </Response>\n  </soap:Body>\n</soap:Envelope>',
-      delayMs: 0
+      responseHeaders: {},
+      delayMs: 0,
     };
+    setCustomContentType('');
     setEditingRule(newRule);
   }
 
@@ -119,6 +220,41 @@ export function MockRulesPage() {
     setEditingRule({ ...editingRule, conditions: newConditions });
   }
 
+  function openEdit(rule: MockRule) {
+    const isPreset = CONTENT_TYPES.some(o => o.value !== '' && o.value === rule.contentType);
+    setCustomContentType(isPreset ? '' : (rule.contentType || ''));
+    setEditingRule(rule);
+  }
+
+  function handleContentTypeSelect(value: string) {
+    if (!editingRule) return;
+    if (value === '') {
+      // "Custom" option – keep whatever is in customContentType
+      setEditingRule({ ...editingRule, contentType: customContentType });
+    } else {
+      setCustomContentType('');
+      setEditingRule({ ...editingRule, contentType: value });
+    }
+  }
+
+  /** Determine whether a content-type value is one of the preset options */
+  function getContentTypeSelectValue(ct: string | undefined): string {
+    if (!ct) return CONTENT_TYPES[0].value;
+    const found = CONTENT_TYPES.find(o => o.value === ct);
+    return found ? found.value : ''; // '' = "Custom"
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 12px',
+    background: '#3c3c3c',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    color: '#cccccc',
+    fontSize: '13px',
+    boxSizing: 'border-box',
+  };
+
   if (isLoading) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -135,9 +271,17 @@ export function MockRulesPage() {
         alignItems: 'center',
         marginBottom: '20px'
       }}>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 500 }}>
-          Mock Response Rules
-        </h2>
+        <div>
+          <h2 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 500 }}>Mock Server Rules</h2>
+          <p style={{ margin: 0, fontSize: '12px', color: '#858585' }}>
+            Use <code style={{ background: '#1e1e1e', padding: '1px 5px', borderRadius: '3px' }}>{'{{uuid}}'}</code>{' '}
+            <code style={{ background: '#1e1e1e', padding: '1px 5px', borderRadius: '3px' }}>{'{{now}}'}</code>{' '}
+            <code style={{ background: '#1e1e1e', padding: '1px 5px', borderRadius: '3px' }}>{'{{randomInt 1 100}}'}</code>{' '}
+            <code style={{ background: '#1e1e1e', padding: '1px 5px', borderRadius: '3px' }}>{'{{randomElement a b c}}'}</code>{' '}
+            <code style={{ background: '#1e1e1e', padding: '1px 5px', borderRadius: '3px' }}>{"{{requestHeader 'name'}}"}</code>{' '}
+            template helpers in response bodies.
+          </p>
+        </div>
         <button
           onClick={handleAddRule}
           style={{
@@ -147,10 +291,11 @@ export function MockRulesPage() {
             borderRadius: '4px',
             color: 'white',
             fontSize: '13px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            flexShrink: 0,
           }}
         >
-          + Add Mock Rule
+          + Add Rule
         </button>
       </div>
 
@@ -192,14 +337,18 @@ export function MockRulesPage() {
                     <div style={{ fontSize: '12px', color: '#858585', marginTop: '4px' }}>
                       Status: {rule.statusCode}
                       {rule.delayMs ? ` • Delay: ${rule.delayMs}ms` : ''}
+                      {rule.contentType ? ` • ${rule.contentType.split(';')[0]}` : ''}
                       {' • '}
                       {rule.conditions.length} condition{rule.conditions.length !== 1 ? 's' : ''}
+                      {rule.responseHeaders && Object.keys(rule.responseHeaders).length > 0
+                        ? ` • ${Object.keys(rule.responseHeaders).length} header${Object.keys(rule.responseHeaders).length !== 1 ? 's' : ''}`
+                        : ''}
                     </div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
-                    onClick={() => setEditingRule(rule)}
+                    onClick={() => openEdit(rule)}
                     style={{
                       padding: '4px 12px',
                       background: 'transparent',
@@ -234,7 +383,8 @@ export function MockRulesPage() {
                   <div style={{ color: '#858585', marginBottom: '4px' }}>Conditions:</div>
                   {rule.conditions.map((cond, idx) => (
                     <div key={idx} style={{ marginLeft: '12px', marginBottom: '4px' }}>
-                      • {cond.type}: <code style={{ background: '#1e1e1e', padding: '2px 6px', borderRadius: '3px' }}>
+                      • {cond.type}
+                      {cond.headerName ? ` [${cond.headerName}]` : ''}: <code style={{ background: '#1e1e1e', padding: '2px 6px', borderRadius: '3px' }}>
                         {cond.pattern}
                       </code>
                       {cond.isRegex && <span style={{ color: '#858585', marginLeft: '6px' }}>(regex)</span>}
@@ -281,7 +431,7 @@ export function MockRulesPage() {
             background: '#252526',
             padding: '24px',
             borderRadius: '8px',
-            maxWidth: '700px',
+            maxWidth: '760px',
             width: '100%',
             maxHeight: '90vh',
             overflow: 'auto'
@@ -299,15 +449,7 @@ export function MockRulesPage() {
                 type="text"
                 value={editingRule.name}
                 onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: '#3c3c3c',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '13px'
-                }}
+                style={inputStyle}
               />
             </div>
 
@@ -332,116 +474,136 @@ export function MockRulesPage() {
               </div>
 
               {editingRule.conditions.map((condition, idx) => (
-                <div key={idx} style={{
-                  display: 'grid',
-                  gridTemplateColumns: '120px 1fr 80px 40px',
-                  gap: '8px',
-                  marginBottom: '8px',
-                  alignItems: 'center'
-                }}>
-                  <select
-                    value={condition.type}
-                    onChange={(e) => updateCondition(idx, { type: e.target.value as any })}
-                    style={{
-                      padding: '6px',
-                      background: '#3c3c3c',
-                      border: '1px solid #555',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      fontSize: '12px'
-                    }}
-                  >
-                    <option value="url">URL</option>
-                    <option value="xpath">XPath</option>
-                    <option value="soapAction">SOAP Action</option>
-                    <option value="header">Header</option>
-                    <option value="method">Method</option>
-                  </select>
+                <div key={idx} style={{ marginBottom: '8px' }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: condition.type === 'header' || condition.type === 'queryParam'
+                      ? '130px 140px 1fr 80px 40px'
+                      : '130px 1fr 80px 40px',
+                    gap: '8px',
+                    alignItems: 'center'
+                  }}>
+                    <select
+                      value={condition.type}
+                      onChange={(e) => {
+                        const newType = e.target.value as MockCondition['type'];
+                        const namePreservingTypes = new Set(['header', 'queryParam']);
+                        // Preserve headerName when switching between types that both use it
+                        const keepName = namePreservingTypes.has(newType) && namePreservingTypes.has(condition.type);
+                        updateCondition(idx, { type: newType, headerName: keepName ? condition.headerName : undefined });
+                      }}
+                      style={{ padding: '6px', background: '#3c3c3c', border: '1px solid #555', borderRadius: '4px', color: '#cccccc', fontSize: '12px' }}
+                    >
+                      <option value="url">URL Path</option>
+                      <option value="method">HTTP Method</option>
+                      <option value="header">Header</option>
+                      <option value="queryParam">Query Param</option>
+                      <option value="xpath">XPath</option>
+                      <option value="contains">Body Contains</option>
+                      <option value="soapAction">SOAP Action</option>
+                    </select>
 
-                  <input
-                    type="text"
-                    value={condition.pattern}
-                    onChange={(e) => updateCondition(idx, { pattern: e.target.value })}
-                    placeholder={condition.type === 'xpath' ? '//Body/GetUser' : '/api/*'}
-                    style={{
-                      padding: '6px 10px',
-                      background: '#3c3c3c',
-                      border: '1px solid #555',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      fontSize: '12px'
-                    }}
-                  />
+                    {(condition.type === 'header' || condition.type === 'queryParam') && (
+                      <input
+                        type="text"
+                        value={condition.headerName || ''}
+                        onChange={(e) => updateCondition(idx, { headerName: e.target.value })}
+                        placeholder={condition.type === 'header' ? 'Header name' : 'Param name'}
+                        style={{ padding: '6px 10px', background: '#3c3c3c', border: '1px solid #555', borderRadius: '4px', color: '#cccccc', fontSize: '12px' }}
+                      />
+                    )}
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer' }}>
                     <input
-                      type="checkbox"
-                      checked={condition.isRegex || false}
-                      onChange={(e) => updateCondition(idx, { isRegex: e.target.checked })}
-                      style={{ width: '14px', height: '14px' }}
+                      type="text"
+                      value={condition.pattern}
+                      onChange={(e) => updateCondition(idx, { pattern: e.target.value })}
+                      placeholder={
+                        condition.type === 'method' ? 'GET, POST, …'
+                        : condition.type === 'xpath' ? '//Body/GetUser'
+                        : condition.type === 'header' || condition.type === 'queryParam' ? 'Expected value'
+                        : '/api/*'
+                      }
+                      style={{ padding: '6px 10px', background: '#3c3c3c', border: '1px solid #555', borderRadius: '4px', color: '#cccccc', fontSize: '12px' }}
                     />
-                    Regex
-                  </label>
 
-                  <button
-                    onClick={() => removeCondition(idx)}
-                    style={{
-                      padding: '6px',
-                      background: '#5a2e2e',
-                      border: 'none',
-                      borderRadius: '4px',
-                      color: '#ff6b6b',
-                      fontSize: '12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ✕
-                  </button>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={condition.isRegex || false}
+                        onChange={(e) => updateCondition(idx, { isRegex: e.target.checked })}
+                        style={{ width: '14px', height: '14px' }}
+                      />
+                      Regex
+                    </label>
+
+                    <button
+                      onClick={() => removeCondition(idx)}
+                      style={{ padding: '6px', background: '#5a2e2e', border: 'none', borderRadius: '4px', color: '#ff6b6b', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Response Config */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            {/* Response Config row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px', gap: '12px', marginBottom: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
-                  Status Code
-                </label>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>Status Code</label>
                 <input
                   type="number"
                   value={editingRule.statusCode}
                   onChange={(e) => setEditingRule({ ...editingRule, statusCode: parseInt(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: '#3c3c3c',
-                    border: '1px solid #555',
-                    borderRadius: '4px',
-                    color: '#cccccc',
-                    fontSize: '13px'
-                  }}
+                  style={inputStyle}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
-                  Delay (ms)
-                </label>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>Content-Type</label>
+                <select
+                  value={getContentTypeSelectValue(editingRule.contentType)}
+                  onChange={(e) => handleContentTypeSelect(e.target.value)}
+                  style={{ ...inputStyle, padding: '7px 12px' }}
+                >
+                  {CONTENT_TYPES.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                {getContentTypeSelectValue(editingRule.contentType) === '' && (
+                  <input
+                    type="text"
+                    value={editingRule.contentType || ''}
+                    onChange={(e) => {
+                      setCustomContentType(e.target.value);
+                      setEditingRule({ ...editingRule, contentType: e.target.value });
+                    }}
+                    placeholder="e.g. application/soap+xml"
+                    style={{ ...inputStyle, marginTop: '6px' }}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>Delay (ms)</label>
                 <input
                   type="number"
                   value={editingRule.delayMs || 0}
                   onChange={(e) => setEditingRule({ ...editingRule, delayMs: parseInt(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: '#3c3c3c',
-                    border: '1px solid #555',
-                    borderRadius: '4px',
-                    color: '#cccccc',
-                    fontSize: '13px'
-                  }}
+                  style={inputStyle}
                 />
               </div>
+            </div>
+
+            {/* Response Headers */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: '#cccccc' }}>
+                Response Headers
+              </label>
+              <HeadersEditor
+                headers={editingRule.responseHeaders || {}}
+                onChange={(h) => setEditingRule({ ...editingRule, responseHeaders: h })}
+              />
             </div>
 
             {/* Response Body */}
@@ -449,8 +611,8 @@ export function MockRulesPage() {
               <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
                 Response Body
               </label>
-              <div style={{ 
-                height: '300px', 
+              <div style={{
+                height: '280px',
                 border: '1px solid #555',
                 borderRadius: '4px',
                 overflow: 'hidden'
@@ -458,7 +620,7 @@ export function MockRulesPage() {
                 <MonacoRequestEditor
                   value={editingRule.responseBody}
                   onChange={(value) => setEditingRule({ ...editingRule, responseBody: value })}
-                  language="xml"
+                  language={contentTypeToLanguage(editingRule.contentType || '')}
                   theme={{
                     name: 'apiprox-dark',
                     isLight: false,
@@ -516,3 +678,4 @@ export function MockRulesPage() {
     </div>
   );
 }
+

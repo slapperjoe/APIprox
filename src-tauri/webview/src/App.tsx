@@ -84,7 +84,7 @@ function App() {
               textTransform: 'capitalize'
             }}
           >
-            {tab === 'mock' ? 'Mock Rules' : tab === 'filewatcher' ? 'File Watcher' : tab}
+            {tab === 'rules' ? 'Replace Rules' : tab === 'mock' ? 'Mock Server' : tab === 'filewatcher' ? 'File Watcher' : tab}
           </button>
         ))}
       </div>
@@ -108,7 +108,7 @@ function App() {
                 <li>Click "Start Proxy" to begin intercepting traffic</li>
                 <li>Configure your application to use proxy: <code style={{ background: '#1e1e1e', padding: '2px 6px', borderRadius: '3px' }}>http://localhost:8888</code></li>
                 <li>View captured traffic in the "Traffic" tab</li>
-                <li>Create replace rules in the "Rules" tab to modify traffic on the fly</li>
+                <li>Create replace rules in the "Replace Rules" tab to modify traffic on the fly</li>
               </ol>
             </div>
           </div>

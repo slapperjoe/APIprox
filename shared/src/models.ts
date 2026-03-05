@@ -458,7 +458,7 @@ export interface ServerConfig {
 
 /** Single match condition within a mock rule */
 export interface MockMatchCondition {
-    type: 'operation' | 'url' | 'soapAction' | 'xpath' | 'header' | 'contains' | 'templateName';
+    type: 'operation' | 'url' | 'soapAction' | 'xpath' | 'header' | 'contains' | 'templateName' | 'method' | 'queryParam';
     pattern: string;
     isRegex?: boolean;
     /** For header matching */
