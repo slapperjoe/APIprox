@@ -111,7 +111,7 @@ Replace rules modify traffic as it flows through the proxy.
 
 ### Creating a Replace Rule
 
-1. **Go to Rules Tab** → Replace Rules
+1. **Go to the Replace Rules tab**
 2. **Click "Add Rule"**
 3. **Configure:**
    - **Name**: Descriptive name for the rule
@@ -160,31 +160,64 @@ Replace rules only modify text within the element matched by XPath. For example:
 - Matches: `<Price>100.00</Price>`
 - Replaces text inside `<Price>` tags only
 
-## Mock Rules
+## Mock Server
 
-Mock rules define responses to return for matching requests.
+The **Mock Server** tab lets you define rules that return predefined responses for matching requests.
 
 ### Creating a Mock Rule
 
-1. **Go to Rules Tab** → Mock Rules
+1. **Go to the Mock Server tab**
 2. **Click "Add Rule"**
 3. **Configure:**
    - **Name**: Descriptive name
-   - **Conditions**: How to match requests (URL, XPath, method)
-   - **Response**: Status code, headers, body
-   - **Delay**: Optional response delay in milliseconds
+   - **Conditions**: How to match requests (see below)
+   - **Status Code**: HTTP status to return (e.g. `200`, `404`, `500`)
+   - **Content-Type**: Select from XML, JSON, plain text, HTML, or enter a custom value
+   - **Response Headers**: Add any custom response headers as key-value pairs
+   - **Response Body**: Enter the response body; syntax highlighting matches the selected content-type
+   - **Delay**: Optional latency in milliseconds to simulate slow responses
 
 ### Match Conditions
 
-**URL Matching:**
-- Simple contains: `/api/users`
-- Regex: `^/api/users/\d+$`
+All conditions in a rule must match (AND logic). Supported types:
 
-**XPath Matching:**
-- Match XML content: `//Request/Action[text()='GetUser']`
+| Condition Type | Matches on | Example pattern |
+|---|---|---|
+| **URL Path** | Request URL (path + query) | `/api/users` or `^/api/users/\d+$` |
+| **HTTP Method** | HTTP verb | `GET` or `POST` |
+| **Header** | Named request header value | Name: `content-type`, Value: `application/json` |
+| **Query Param** | Named URL query parameter | Name: `env`, Value: `prod` |
+| **XPath** | XML element exists in body | `//GetCustomer/CustomerId` |
+| **Body Contains** | Raw body contains text | `TemplateName` |
+| **SOAP Action** | `SOAPAction` header | `urn:GetUser` |
 
-**HTTP Method:**
-- GET, POST, PUT, DELETE, etc.
+Enable **Regex** on any condition to match the pattern as a regular expression.
+
+### Template Helpers in Response Bodies
+
+Use `{{ }}` helpers anywhere in the response body for dynamic values resolved at request time:
+
+| Helper | Example | Output |
+|---|---|---|
+| `{{now}}` | `{{now}}` | `2026-03-05T07:49:57.141Z` |
+| `{{now 'timestamp'}}` | `{{now 'timestamp'}}` | `1709625797141` |
+| `{{now 'date'}}` | `{{now 'date'}}` | `3/5/2026` |
+| `{{now 'time'}}` | `{{now 'time'}}` | `7:49:57 AM` |
+| `{{uuid}}` | `{{uuid}}` | `3d6f0a1b-c7e2-4f9a-b135-...` |
+| `{{randomInt min max}}` | `{{randomInt 1 100}}` | `42` |
+| `{{randomElement ...}}` | `{{randomElement red green blue}}` | `green` |
+| `{{requestHeader 'name'}}` | `{{requestHeader 'x-request-id'}}` | value of that header |
+| `{{requestBody}}` | `{{requestBody}}` | raw incoming request body |
+
+**Example — JSON with dynamic values:**
+```json
+{
+  "id": "{{uuid}}",
+  "createdAt": "{{now}}",
+  "score": {{randomInt 1 100}},
+  "env": "{{requestHeader 'x-env'}}"
+}
+```
 
 ### Example Mock Rules
 
@@ -369,11 +402,11 @@ Requires: Rust toolchain, Node.js 18+, platform build tools (Xcode / Visual Stud
 **Symptom**: Requests hit real server instead of mock
 
 **Solutions:**
-- Check rule is enabled
-- Verify URL pattern matches request
-- Check rule priority order
-- Test conditions individually
-- View traffic log to see actual URLs
+- Check rule is enabled (checkbox on the rule card)
+- Verify condition patterns match the actual request (check Traffic tab for real URLs)
+- Check rule order – first matching rule wins
+- Test each condition individually before combining them
+- For query-param conditions, make sure the param name field is filled in
 
 ### Proxy Connection Refused
 **Symptom**: "Connection refused" errors
@@ -393,10 +426,12 @@ Requires: Rust toolchain, Node.js 18+, platform build tools (Xcode / Visual Stud
 - Use descriptive names
 - Disable rules when not needed
 
-### Mock Rules
+### Mock Server
 - Keep mock responses realistic
-- Include appropriate headers (Content-Type, etc.)
+- Set the correct Content-Type for your response (XML, JSON, etc.)
+- Include appropriate response headers when needed
 - Use delays to simulate real network conditions
+- Use template helpers (`{{uuid}}`, `{{now}}`, etc.) to generate dynamic responses
 - Version your mock data
 - Organize rules by feature/module
 
@@ -472,5 +507,5 @@ A: Rules are stored in JSON format and can be created/modified programmatically.
 
 ---
 
-**Version**: 0.2.0  
-**Last Updated**: 2026-03-04
+**Version**: 0.1.0  
+**Last Updated**: 2026-03-05
