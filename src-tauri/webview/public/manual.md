@@ -24,7 +24,7 @@
 
 ## Replace Rules
 
-Modify traffic in real-time using XPath and text replacement.
+Modify traffic in real-time using XPath and text replacement. Found under the **Replace Rules** tab.
 
 **Example: Mask SSN**
 ```
@@ -42,17 +42,64 @@ Replace: production
 Target: Request
 ```
 
-## Mock Rules
+## Mock Server
 
-Return predefined responses for matching requests.
+Return predefined responses for matching requests. Found under the **Mock Server** tab.
+
+### Match Condition Types
+
+| Type | What it matches |
+|------|----------------|
+| URL Path | Request URL contains/matches pattern |
+| HTTP Method | HTTP verb (GET, POST, etc.) |
+| Header | Named header value |
+| Query Param | Named URL query parameter |
+| XPath | XML element present in body |
+| Body Contains | Raw body contains text |
+| SOAP Action | SOAPAction header value |
+
+All conditions in a rule must match (AND logic). Enable **Regex** on any condition.
+
+### Response Options
+
+- **Status Code** – HTTP status to return
+- **Content-Type** – Preset dropdown (XML/JSON/text/HTML) or custom value
+- **Response Headers** – Add custom key-value response headers
+- **Response Body** – With syntax highlighting matching the content-type
+- **Delay (ms)** – Simulate network latency
+
+### Template Helpers
+
+Use these inside the response body for dynamic values:
+
+| Helper | Output |
+|--------|--------|
+| `{{now}}` | ISO-8601 timestamp |
+| `{{now 'timestamp'}}` | Unix ms |
+| `{{now 'date'}}` / `{{now 'time'}}` | Locale date / time |
+| `{{uuid}}` | Random UUID v4 |
+| `{{randomInt 1 100}}` | Random integer 1–100 |
+| `{{randomElement a b c}}` | Random pick |
+| `{{requestHeader 'name'}}` | Incoming header value |
+| `{{requestBody}}` | Raw request body |
+
+**Example:**
+```json
+{
+  "id": "{{uuid}}",
+  "at": "{{now}}",
+  "score": {{randomInt 1 100}}
+}
+```
 
 **Example: Mock User API**
 ```
-Condition: URL contains /api/user
+Condition: URL contains /api/user, Method: GET
 Response Status: 200
+Content-Type: JSON
 Response Body:
 {
-  "id": 123,
+  "id": "{{uuid}}",
   "name": "Test User"
 }
 ```
@@ -61,6 +108,7 @@ Response Body:
 ```
 Condition: XPath //GetCustomer
 Response Status: 200
+Content-Type: XML
 Response Body:
 <soap:Envelope>
   <soap:Body>
@@ -110,7 +158,7 @@ Response Body:
 |-------|----------|
 | No traffic appearing | Check proxy settings in your app |
 | Certificate errors | Regenerate and trust certificate |
-| Mock not matching | Check rule is enabled and URL matches |
+| Mock not matching | Check rule is enabled, condition patterns, and rule order |
 | Connection refused | Verify server is running and port is correct |
 
 ## Configuration Files
@@ -124,7 +172,7 @@ Response Body:
 
 ✓ Use specific XPath to avoid unintended changes  
 ✓ Test replace rules with sample traffic first  
-✓ Keep mock responses realistic  
+✓ Use template helpers for realistic dynamic mock responses  
 ✓ Clear traffic logs regularly  
 ✓ Export certificate before regenerating  
 ✓ Disable rules when not needed  
