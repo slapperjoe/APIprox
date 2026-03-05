@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { listen } from '@tauri-apps/api/event';
 import { bridge } from '../utils/bridge';
 
 interface FileWatch {
@@ -403,16 +404,28 @@ export const FileWatcherPage: React.FC = () => {
   useEffect(() => {
     loadWatches();
     loadEvents();
-    
-    // Poll for new events every 2 seconds
-    const interval = setInterval(loadEvents, 2000);
-    return () => clearInterval(interval);
+
+    // Listen for real-time watcher events from Rust
+    const unlisten = listen<any>('watcher-event', (event) => {
+      const e = event.payload;
+      // Map Rust WatcherEvent fields to local FileChangeEvent shape
+      const mapped: FileChangeEvent = {
+        watchId: e.watchId,
+        watchName: e.watchName,
+        eventType: e.eventKind || 'modified',
+        filePath: e.filePath,
+        timestamp: new Date(e.timestamp).toISOString(),
+      };
+      setEvents(prev => [mapped, ...prev].slice(0, 1000));
+    });
+
+    return () => { unlisten.then(fn => fn()); };
   }, []);
 
   const loadWatches = async () => {
     try {
       const result = await bridge.getFileWatches();
-      setWatches(result.watches || []);
+      setWatches(Array.isArray(result) ? result : (result.watches || []));
     } catch (error) {
       console.error('Failed to load file watches:', error);
     }
@@ -421,7 +434,15 @@ export const FileWatcherPage: React.FC = () => {
   const loadEvents = async () => {
     try {
       const result = await bridge.getFileWatchEvents(100);
-      setEvents(result.events || []);
+      const raw = Array.isArray(result) ? result : (result.events || []);
+      // Map Rust WatcherEvent fields to local FileChangeEvent shape
+      setEvents(raw.map((e: any) => ({
+        watchId: e.watchId,
+        watchName: e.watchName,
+        eventType: e.eventKind || 'modified',
+        filePath: e.filePath,
+        timestamp: new Date(e.timestamp).toISOString(),
+      })));
     } catch (error) {
       console.error('Failed to load events:', error);
     }
@@ -434,11 +455,11 @@ export const FileWatcherPage: React.FC = () => {
     }
 
     try {
-      const watch: FileWatch = {
-        id: `watch-${Date.now()}`,
+      const watch = {
+        id: '',
         name: newWatch.name,
         path: newWatch.path,
-        pattern: newWatch.pattern || undefined,
+        pattern: newWatch.pattern || null,
         enabled: true,
         recursive: newWatch.recursive,
         createdAt: new Date().toISOString()
@@ -449,16 +470,18 @@ export const FileWatcherPage: React.FC = () => {
       setShowAddModal(false);
       setNewWatch({ name: '', path: '', pattern: '', recursive: true });
     } catch (error: any) {
-      alert(`Failed to add watch: ${error.message || error}`);
+      alert(`Failed to add watch: ${error}`);
     }
   };
 
   const handleToggleWatch = async (id: string, enabled: boolean) => {
+    const watch = watches.find((w: any) => w.id === id);
+    if (!watch) return;
     try {
-      await bridge.updateFileWatch(id, { enabled: !enabled });
+      await bridge.updateFileWatch(id, { ...watch, enabled: !enabled });
       await loadWatches();
     } catch (error: any) {
-      alert(`Failed to toggle watch: ${error.message || error}`);
+      alert(`Failed to toggle watch: ${error}`);
     }
   };
 

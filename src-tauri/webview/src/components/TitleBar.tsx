@@ -113,14 +113,16 @@ const CloseButton = styled(WindowsButton)`
 
 interface TitleBarProps {
   title?: string;
-  sidecarStatus?: { status: string };
-  sidecarPort?: number;
+  proxyRunning?: boolean;
+  proxyPort?: number;
+  proxyMode?: string;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({ 
   title = 'APIprox',
-  sidecarStatus,
-  sidecarPort
+  proxyRunning,
+  proxyPort,
+  proxyMode,
 }) => {
   const [isMac, setIsMac] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -171,19 +173,22 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         <TitleBarContent $isMac={true}>
           <Title>{title}</Title>
         </TitleBarContent>
-        {sidecarStatus && (
-          <StatusIndicator $isMac={true}>
-            <span className="status-dot">
-              {sidecarStatus.status === 'ok' ? '🟢' : '🔴'}
-            </span>
-            <span className="status-text">
-              {sidecarStatus.status === 'ok' ? 'Online' : 'Offline'}
-            </span>
-            {sidecarPort && (
-              <span className="port">(:{sidecarPort})</span>
-            )}
-          </StatusIndicator>
-        )}
+        <StatusIndicator $isMac={true}>
+          {proxyRunning ? (
+            <>
+              <span className="status-dot">🟢</span>
+              <span className="status-text">
+                {proxyMode === 'both' ? 'Proxy + Mock' : proxyMode === 'mock' ? 'Mock' : 'Proxy'}
+              </span>
+              {proxyPort && <span className="port">:{proxyPort}</span>}
+            </>
+          ) : (
+            <>
+              <span className="status-dot">⚫</span>
+              <span className="status-text">Stopped</span>
+            </>
+          )}
+        </StatusIndicator>
       </TitleBarContainer>
     );
   }
@@ -193,19 +198,22 @@ export const TitleBar: React.FC<TitleBarProps> = ({
     <TitleBarContainer $isMac={false}>
       <TitleBarContent $isMac={false}>
         <Title>{title}</Title>
-        {sidecarStatus && (
-          <StatusIndicator $isMac={false}>
-            <span className="status-dot">
-              {sidecarStatus.status === 'ok' ? '🟢' : '🔴'}
-            </span>
-            <span className="status-text">
-              {sidecarStatus.status === 'ok' ? 'Online' : 'Offline'}
-            </span>
-            {sidecarPort && (
-              <span className="port">(:{sidecarPort})</span>
-            )}
-          </StatusIndicator>
-        )}
+        <StatusIndicator $isMac={false}>
+          {proxyRunning ? (
+            <>
+              <span className="status-dot">🟢</span>
+              <span className="status-text">
+                {proxyMode === 'both' ? 'Proxy + Mock' : proxyMode === 'mock' ? 'Mock' : 'Proxy'}
+              </span>
+              {proxyPort && <span className="port">:{proxyPort}</span>}
+            </>
+          ) : (
+            <>
+              <span className="status-dot">⚫</span>
+              <span className="status-text">Stopped</span>
+            </>
+          )}
+        </StatusIndicator>
         <WindowControls $isMac={false}>
           <WindowsButton onClick={handleMinimize}>
             <svg viewBox="0 0 10 1" fill="currentColor">

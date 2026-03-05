@@ -130,7 +130,7 @@ export function MockRulesPage() {
   async function loadRules() {
     try {
       const response = await bridge.getMockRules();
-      setRules(response.rules || []);
+      setRules(Array.isArray(response) ? response : (response.rules || []));
     } catch (error) {
       console.error('Failed to load mock rules:', error);
     } finally {
@@ -140,7 +140,7 @@ export function MockRulesPage() {
 
   async function handleAddRule() {
     const newRule: MockRule = {
-      id: `mock-${Date.now()}`,
+      id: '',
       name: 'New Mock Rule',
       enabled: true,
       conditions: [{ type: 'url', pattern: '/api/*', isRegex: false }],
@@ -158,7 +158,7 @@ export function MockRulesPage() {
     if (!editingRule) return;
 
     try {
-      const isNew = !rules.find(r => r.id === editingRule.id);
+      const isNew = !editingRule.id || !rules.find(r => r.id === editingRule.id);
       
       if (isNew) {
         await bridge.addMockRule(editingRule);

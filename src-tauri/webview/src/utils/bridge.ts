@@ -1,71 +1,8 @@
 /**
- * Bridge for communicating with the sidecar backend
- * Uses HTTP to communicate with the Express server running in the sidecar
+ * Bridge for communicating with the Rust backend via Tauri invoke().
+ * Replaces the old sidecar HTTP bridge.
  */
-
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-
-let sidecarPort: number | null = null;
-const portCallbacks: Array<(port: number) => void> = [];
-let initialized = false;
-
-// Initialize Tauri event listeners
-async function initializeTauriListeners() {
-  if (initialized) return;
-  
-  console.log('[Bridge] Initializing Tauri listeners...');
-  initialized = true;
-  
-  try {
-    // Listen for sidecar port event
-    await listen<number>('sidecar-port', (event) => {
-      sidecarPort = event.payload;
-      console.log('[Bridge] Sidecar port received via event:', sidecarPort);
-      // Notify all callbacks
-      portCallbacks.forEach(cb => cb(sidecarPort!));
-    });
-    
-    console.log('[Bridge] Event listener registered for sidecar-port');
-    
-    // Also try to get it via invoke immediately
-    try {
-      const port = await invoke<number | null>('get_sidecar_port');
-      if (port && !sidecarPort) {
-        sidecarPort = port;
-        console.log('[Bridge] Sidecar port from invoke:', sidecarPort);
-        // Notify all callbacks
-        portCallbacks.forEach(cb => cb(sidecarPort!));
-      } else if (port) {
-        console.log('[Bridge] Port already set, invoke returned:', port);
-      } else {
-        console.log('[Bridge] Invoke returned null, waiting for event');
-      }
-    } catch (err) {
-      console.error('[Bridge] Failed to get sidecar port via invoke:', err);
-    }
-  } catch (error) {
-    console.error('[Bridge] Error initializing Tauri listeners:', error);
-  }
-}
-
-// Initialize on module load
-initializeTauriListeners();
-
-// Also try again when DOM is ready (just in case)
-if (typeof window !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => initializeTauriListeners());
-  }
-}
-
-// Helper to get sidecar URL
-function getSidecarUrl(path: string): string {
-  if (!sidecarPort) {
-    throw new Error('Sidecar port not available yet');
-  }
-  return `http://127.0.0.1:${sidecarPort}${path}`;
-}
 
 export interface ProxyStartRequest {
   port: number;
@@ -74,242 +11,146 @@ export interface ProxyStartRequest {
 }
 
 export interface ProxyStatusResponse {
-  enabled: boolean;
+  running: boolean;
   port: number | null;
   mode: string;
+  targetUrl: string;
 }
 
 export const bridge = {
-  async startProxy(config: ProxyStartRequest): Promise<any> {
-    initializeTauriListeners(); // Ensure initialized
-    const response = await fetch(getSidecarUrl('/proxy/start'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config)
+  // ── Proxy ──────────────────────────────────────────────────────────────────
+  async startProxy(config: ProxyStartRequest): Promise<void> {
+    return invoke('start_proxy', {
+      port: config.port,
+      mode: config.mode,
+      targetUrl: config.targetUrl,
     });
-    return response.json();
   },
 
-  async stopProxy(): Promise<any> {
-    initializeTauriListeners(); // Ensure initialized
-    const response = await fetch(getSidecarUrl('/proxy/stop'), {
-      method: 'POST'
-    });
-    return response.json();
+  async stopProxy(): Promise<void> {
+    return invoke('stop_proxy');
   },
 
   async getProxyStatus(): Promise<ProxyStatusResponse> {
-    initializeTauriListeners(); // Ensure initialized
-    const response = await fetch(getSidecarUrl('/proxy/status'));
-    return response.json();
+    return invoke('get_proxy_status');
   },
 
   async getMockStatus(): Promise<any> {
-    const response = await fetch(getSidecarUrl('/mock/status'));
-    return response.json();
+    return invoke('get_mock_status');
   },
 
-  async healthCheck(): Promise<any> {
-    try {
-      if (!sidecarPort) {
-        return { status: 'waiting', message: 'Waiting for sidecar port...' };
-      }
-      const response = await fetch(getSidecarUrl('/health'), { 
-        signal: AbortSignal.timeout(2000) 
-      });
-      return response.json();
-    } catch (error) {
-      console.error('[Bridge] Health check failed:', error);
-      return { status: 'error', message: 'Sidecar not reachable' };
-    }
-  },
-
-  getSidecarPort(): number | null {
-    return sidecarPort;
-  },
-
-  onPortAvailable(callback: (port: number) => void): void {
-    if (sidecarPort) {
-      callback(sidecarPort);
-    } else {
-      portCallbacks.push(callback);
-    }
-  },
-
-  // Certificate management
+  // ── Certificate management ─────────────────────────────────────────────────
   async getCertificateInfo(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/certificate/info'));
-    return response.json();
+    return invoke('get_certificate_info');
   },
 
   async generateCertificate(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/certificate/generate'), {
-      method: 'POST'
-    });
-    return response.json();
+    return invoke('generate_certificate');
   },
 
   async trustCertificate(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/certificate/trust'), {
-      method: 'POST'
-    });
-    return response.json();
+    return invoke('trust_certificate');
   },
 
   async getExportCertificateUrl(): Promise<string> {
-    initializeTauriListeners();
-    return getSidecarUrl('/certificate/export');
+    const info: any = await invoke('get_certificate_info');
+    return info.certPath ?? '';
   },
 
-  // Mock rules management
+  // ── Mock rules ─────────────────────────────────────────────────────────────
   async getMockRules(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/mock/rules'));
-    return response.json();
+    return invoke('get_mock_rules');
   },
 
   async addMockRule(rule: any): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/mock/rules'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rule)
-    });
-    return response.json();
+    return invoke('add_mock_rule', { rule });
   },
 
-  async updateMockRule(id: string, updates: any): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/mock/rules/${id}`), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
-    });
-    return response.json();
+  async updateMockRule(id: string, rule: any): Promise<any> {
+    return invoke('update_mock_rule', { id, rule });
   },
 
   async deleteMockRule(id: string): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/mock/rules/${id}`), {
-      method: 'DELETE'
-    });
-    return response.json();
+    return invoke('delete_mock_rule', { id });
   },
 
-  // Breakpoint management
+  // ── Replace rules ──────────────────────────────────────────────────────────
+  async getReplaceRules(): Promise<any[]> {
+    return invoke('get_replace_rules');
+  },
+
+  async addReplaceRule(rule: any): Promise<any> {
+    return invoke('add_replace_rule', { rule });
+  },
+
+  async updateReplaceRule(id: string, rule: any): Promise<any> {
+    return invoke('update_replace_rule', { id, rule });
+  },
+
+  async deleteReplaceRule(id: string): Promise<void> {
+    return invoke('delete_replace_rule', { id });
+  },
+
+  // ── Breakpoints ────────────────────────────────────────────────────────────
   async getBreakpointRules(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/breakpoint/rules'));
-    return response.json();
+    return invoke('get_breakpoint_rules');
   },
 
   async addBreakpointRule(rule: any): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/breakpoint/rules'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rule)
-    });
-    return response.json();
+    return invoke('add_breakpoint_rule', { rule });
   },
 
-  async updateBreakpointRule(id: string, updates: any): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/breakpoint/rules/${id}`), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
-    });
-    return response.json();
+  async updateBreakpointRule(id: string, rule: any): Promise<any> {
+    // Update is done by replacing via set_breakpoint_rules for now
+    const rules: any[] = await invoke('get_breakpoint_rules');
+    const updated = rules.map((r: any) => r.id === id ? { ...r, ...rule } : r);
+    await invoke('set_breakpoint_rules', { rules: updated });
+    return rule;
   },
 
   async deleteBreakpointRule(id: string): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/breakpoint/rules/${id}`), {
-      method: 'DELETE'
-    });
-    return response.json();
+    return invoke('delete_breakpoint_rule', { id });
   },
 
   async getBreakpointQueue(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/breakpoint/queue'));
-    return response.json();
+    return invoke('get_paused_traffic');
   },
 
-  async continueBreakpoint(id: string, modifications?: any): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/breakpoint/continue/${id}`), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modifications })
+  async continueBreakpoint(id: string, modifications?: { body?: string; headers?: Record<string, string>; statusCode?: number }): Promise<any> {
+    return invoke('continue_breakpoint', {
+      id,
+      modifiedBody: modifications?.body ?? null,
+      modifiedHeaders: modifications?.headers ?? null,
+      modifiedStatusCode: modifications?.statusCode ?? null,
     });
-    return response.json();
   },
 
   async dropBreakpoint(id: string): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/breakpoint/drop/${id}`), {
-      method: 'POST'
-    });
-    return response.json();
+    return invoke('drop_breakpoint', { id });
   },
 
-  // ============================================================================
-  // File Watcher Methods
-  // ============================================================================
-
+  // ── File Watcher ───────────────────────────────────────────────────────────
   async getFileWatches(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/filewatcher/watches'));
-    return response.json();
+    return invoke('get_file_watches');
   },
 
   async addFileWatch(watch: any): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/filewatcher/watches'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(watch)
-    });
-    return response.json();
+    return invoke('add_file_watch', { watch });
   },
 
-  async updateFileWatch(id: string, updates: any): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/filewatcher/watches/${id}`), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
-    });
-    return response.json();
+  async updateFileWatch(id: string, watch: any): Promise<any> {
+    return invoke('update_file_watch', { id, watch });
   },
 
   async deleteFileWatch(id: string): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl(`/filewatcher/watches/${id}`), {
-      method: 'DELETE'
-    });
-    return response.json();
+    return invoke('delete_file_watch', { id });
   },
 
   async getFileWatchEvents(limit?: number): Promise<any> {
-    initializeTauriListeners();
-    const url = limit 
-      ? getSidecarUrl(`/filewatcher/events?limit=${limit}`)
-      : getSidecarUrl('/filewatcher/events');
-    const response = await fetch(url);
-    return response.json();
+    return invoke('get_watcher_events', { limit: limit ?? null });
   },
 
   async clearFileWatchEvents(): Promise<any> {
-    initializeTauriListeners();
-    const response = await fetch(getSidecarUrl('/filewatcher/events/clear'), {
-      method: 'POST'
-    });
-    return response.json();
-  }
+    return invoke('clear_watcher_events');
+  },
 };

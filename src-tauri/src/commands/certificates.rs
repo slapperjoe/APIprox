@@ -1,0 +1,228 @@
+use serde::Serialize;
+use tauri::State;
+
+use crate::certificates::manager::CertInfo;
+use crate::AppState;
+
+#[tauri::command]
+pub async fn get_certificate_info(state: State<'_, AppState>) -> Result<CertInfo, String> {
+    Ok(state.cert_manager.info())
+}
+
+#[tauri::command]
+pub async fn generate_certificate(state: State<'_, AppState>) -> Result<CertInfo, String> {
+    state.cert_manager.generate().map_err(|e| e.to_string())
+}
+
+/// Attempt to install the CA certificate into the OS trust store.
+///
+/// Platform strategy (all chosen to avoid requiring sudo/admin elevation):
+///   macOS   — login keychain via `security add-trusted-cert` (user-level, no sudo)
+///   Windows — current-user cert store via `certutil -addstore -user Root`
+///   Linux   — instructions only; no writable user-level trust store exists
+///
+/// Firefox on all platforms uses its own NSS store and is NOT affected by
+/// these commands. Manual steps are always included.
+#[tauri::command]
+pub async fn trust_certificate(state: State<'_, AppState>) -> Result<TrustResult, String> {
+    let cert_path = state.cert_manager.cert_path();
+    if !cert_path.exists() {
+        return Err("CA certificate not found — generate it first".to_string());
+    }
+
+    let path_str = cert_path.to_string_lossy().into_owned();
+
+    #[cfg(target_os = "macos")]
+    return Ok(install_macos(&path_str));
+
+    #[cfg(target_os = "windows")]
+    return Ok(install_windows(&path_str));
+
+    #[cfg(target_os = "linux")]
+    return Ok(install_linux(&path_str));
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    return Ok(TrustResult {
+        success: false,
+        message: "Certificate trust not supported on this platform".to_string(),
+        firefox_note: firefox_note(),
+        manual_steps: vec!["Manually add the certificate to your system trust store.".to_string()],
+    });
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrustResult {
+    /// Whether the OS-level installation succeeded.
+    pub success: bool,
+    /// Human-readable result message.
+    pub message: String,
+    /// Always populated — Firefox requires separate manual steps on all platforms.
+    pub firefox_note: String,
+    /// Populated on failure (or always on Linux) with step-by-step instructions.
+    pub manual_steps: Vec<String>,
+}
+
+fn firefox_note() -> String {
+    concat!(
+        "Firefox uses its own certificate store and ignores the OS trust store. ",
+        "To trust this CA in Firefox: open Preferences → Privacy & Security → ",
+        "Certificates → View Certificates → Authorities → Import, then select ",
+        "the ca.cer file and check 'Trust this CA to identify websites'."
+    ).to_string()
+}
+
+// ── macOS ──────────────────────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+fn install_macos(cert_path: &str) -> TrustResult {
+    // Use the login keychain — writable by the current user without sudo.
+    // Chrome and Safari on macOS respect login-keychain trust.
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => {
+            return TrustResult {
+                success: false,
+                message: "Could not determine HOME directory".to_string(),
+                firefox_note: firefox_note(),
+                manual_steps: macos_manual_steps(cert_path),
+            }
+        }
+    };
+    let keychain = format!("{}/Library/Keychains/login.keychain-db", home);
+
+    let output = std::process::Command::new("security")
+        .args([
+            "add-trusted-cert",
+            "-r", "trustRoot",
+            "-k", &keychain,
+            cert_path,
+        ])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => TrustResult {
+            success: true,
+            message: format!(
+                "Certificate added to your login keychain. \
+                 Chrome and Safari will trust it after restart. \
+                 Keychain: {}",
+                keychain
+            ),
+            firefox_note: firefox_note(),
+            manual_steps: vec![],
+        },
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+            let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+            let detail = if !stderr.is_empty() { stderr } else { stdout };
+            TrustResult {
+                success: false,
+                message: format!("security command failed: {}", detail.trim()),
+                firefox_note: firefox_note(),
+                manual_steps: macos_manual_steps(cert_path),
+            }
+        }
+        Err(e) => TrustResult {
+            success: false,
+            message: format!("Could not run security command: {}", e),
+            firefox_note: firefox_note(),
+            manual_steps: macos_manual_steps(cert_path),
+        },
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_manual_steps(cert_path: &str) -> Vec<String> {
+    vec![
+        format!("Open Keychain Access (Spotlight → 'Keychain Access')"),
+        format!("File → Import Items → select: {}", cert_path),
+        format!("Double-click the imported 'APIprox Root CA' certificate"),
+        format!("Expand 'Trust' → set 'When using this certificate' to 'Always Trust'"),
+        format!("Close and enter your password when prompted"),
+        format!("Restart Chrome and Safari"),
+    ]
+}
+
+// ── Windows ────────────────────────────────────────────────────────────────
+
+#[cfg(target_os = "windows")]
+fn install_windows(cert_path: &str) -> TrustResult {
+    // -addstore -user adds to the current user's store — no admin elevation needed.
+    let output = std::process::Command::new("certutil")
+        .args(["-addstore", "-user", "Root", cert_path])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => TrustResult {
+            success: true,
+            message: "Certificate added to your user certificate store. \
+                      Chrome and Edge will trust it after restart."
+                .to_string(),
+            firefox_note: firefox_note(),
+            manual_steps: vec![],
+        },
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+            TrustResult {
+                success: false,
+                message: format!("certutil failed: {}", stderr.trim()),
+                firefox_note: firefox_note(),
+                manual_steps: windows_manual_steps(cert_path),
+            }
+        }
+        Err(e) => TrustResult {
+            success: false,
+            message: format!("Could not run certutil: {}", e),
+            firefox_note: firefox_note(),
+            manual_steps: windows_manual_steps(cert_path),
+        },
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_manual_steps(cert_path: &str) -> Vec<String> {
+    vec![
+        format!("Open the file: {}", cert_path),
+        "Click 'Install Certificate'".to_string(),
+        "Choose 'Current User' → 'Place all certificates in the following store'".to_string(),
+        "Browse → select 'Trusted Root Certification Authorities'".to_string(),
+        "Click Next → Finish → Yes to the security warning".to_string(),
+        "Restart Chrome and Edge".to_string(),
+    ]
+}
+
+// ── Linux ──────────────────────────────────────────────────────────────────
+
+#[cfg(target_os = "linux")]
+fn install_linux(cert_path: &str) -> TrustResult {
+    // There is no user-writable system trust store on Linux.
+    // We provide instructions for common distributions.
+    TrustResult {
+        success: false,
+        message: "Linux system trust requires root. Please follow the manual steps below."
+            .to_string(),
+        firefox_note: firefox_note(),
+        manual_steps: linux_manual_steps(cert_path),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_manual_steps(cert_path: &str) -> Vec<String> {
+    vec![
+        "# Debian / Ubuntu / Mint:".to_string(),
+        format!("  sudo cp {} /usr/local/share/ca-certificates/apiprox-ca.crt", cert_path),
+        "  sudo update-ca-certificates".to_string(),
+        "".to_string(),
+        "# Fedora / RHEL / CentOS:".to_string(),
+        format!("  sudo cp {} /etc/pki/ca-trust/source/anchors/apiprox-ca.crt", cert_path),
+        "  sudo update-ca-trust".to_string(),
+        "".to_string(),
+        "# Arch Linux:".to_string(),
+        format!("  sudo cp {} /etc/ca-certificates/trust-source/anchors/apiprox-ca.crt", cert_path),
+        "  sudo trust extract-compat".to_string(),
+        "".to_string(),
+        "After running the appropriate commands, restart Chrome/Chromium.".to_string(),
+    ]
+}
+

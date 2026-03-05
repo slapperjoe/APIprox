@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { TitleBar } from './components/TitleBar';
 import { ServerControl } from './components/ServerControl';
 import { TrafficViewer } from './components/TrafficViewer';
@@ -9,39 +10,37 @@ import { FileWatcherPage } from './components/FileWatcherPage';
 import { SettingsPage } from './components/SettingsPage';
 import { HelpPage } from './components/HelpPage';
 import { TrafficLog } from './types';
-import { bridge } from './utils/bridge';
 
 type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('proxy');
   const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [proxyStatus, setProxyStatus] = useState<{ port: number; mode: string } | null>(null);
   const [trafficLogs, setTrafficLogs] = useState<TrafficLog[]>([]);
   const [selectedLog, setSelectedLog] = useState<TrafficLog | null>(null);
-  const [sidecarHealth, setSidecarHealth] = useState<any>(null);
+  const [pausedCount, setPausedCount] = useState(0);
 
   useEffect(() => {
-    // Check sidecar health on mount and periodically
-    checkHealth();
-    const interval = setInterval(checkHealth, 5000);
-    
-    // Trigger health check when port becomes available
-    bridge.onPortAvailable(() => {
-      console.log('[App] Port available, checking health...');
-      checkHealth();
+    // Listen for traffic events emitted by the Rust proxy
+    const unlistenTraffic = listen<TrafficLog>('traffic-event', (event) => {
+      setTrafficLogs(prev => [event.payload, ...prev].slice(0, 1000));
     });
-    
-    return () => clearInterval(interval);
-  }, []);
 
-  async function checkHealth() {
-    try {
-      const health = await bridge.healthCheck();
-      setSidecarHealth(health);
-    } catch (error) {
-      setSidecarHealth({ status: 'error' });
-    }
-  }
+    // Auto-switch to breakpoints tab and update badge when traffic is paused
+    const unlistenBreakpoint = listen<any[]>('breakpoint-paused', (event) => {
+      const count = event.payload.length;
+      setPausedCount(count);
+      if (count > 0) {
+        setActiveTab('breakpoints');
+      }
+    });
+
+    return () => {
+      unlistenTraffic.then(fn => fn());
+      unlistenBreakpoint.then(fn => fn());
+    };
+  }, []);
 
   return (
     <div style={{
@@ -54,11 +53,7 @@ function App() {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
     }}>
       {/* Custom Title Bar with Window Controls and Status */}
-      <TitleBar 
-        title="APIprox"
-        sidecarStatus={sidecarHealth}
-        sidecarPort={bridge.getSidecarPort() || undefined}
-      />
+      <TitleBar title="APIprox" proxyRunning={proxyEnabled} proxyPort={proxyStatus?.port} proxyMode={proxyStatus?.mode} />
 
       {/* Tab Bar */}
       <div style={{
@@ -72,16 +67,17 @@ function App() {
         {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'settings', 'help'] as Tab[]).map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => { setActiveTab(tab); if (tab === 'breakpoints') setPausedCount(0); }}
             style={{
               padding: '6px 16px',
               background: activeTab === tab ? '#1e1e1e' : 'transparent',
               border: 'none',
               borderBottom: activeTab === tab ? '2px solid #007acc' : 'none',
-              color: activeTab === tab ? '#ffffff' : '#cccccc',
+              color: tab === 'breakpoints' && pausedCount > 0 ? '#f14c4c' : activeTab === tab ? '#ffffff' : '#cccccc',
               fontSize: '13px',
               cursor: 'pointer',
-              textTransform: 'capitalize'
+              textTransform: 'capitalize',
+              position: 'relative',
             }}
           >
             {tab === 'rules' ? 'Replace Rules' : tab === 'mock' ? 'Mock Server' : tab === 'filewatcher' ? 'File Watcher' : tab}
@@ -93,7 +89,10 @@ function App() {
       <div style={{ flex: 1, overflow: 'auto' }}>
         {activeTab === 'proxy' && (
           <div style={{ padding: '20px' }}>
-            <ServerControl onStatusChange={setProxyEnabled} />
+            <ServerControl onStatusChange={(info) => {
+              setProxyEnabled(info.running);
+              setProxyStatus(info.running ? { port: info.port, mode: info.mode } : null);
+            }} />
             
             <div style={{
               padding: '20px',

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { bridge } from '../utils/bridge';
 
 interface ServerControlProps {
-  onStatusChange?: (enabled: boolean) => void;
+  onStatusChange?: (info: { running: boolean; port: number; mode: string }) => void;
 }
 
 export function ServerControl({ onStatusChange }: ServerControlProps) {
@@ -24,9 +24,13 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     try {
       const status = await bridge.getProxyStatus();
       setStatus(status);
-      setProxyEnabled(status.enabled);
+      setProxyEnabled(status.running);
       if (status.port) setProxyPort(status.port);
-      onStatusChange?.(status.enabled);
+      if (status.running) {
+        if (status.mode) setMode(status.mode as any);
+        if (status.targetUrl !== undefined) setTargetUrl(status.targetUrl);
+      }
+      onStatusChange?.({ running: status.running, port: status.port ?? proxyPort, mode: status.mode ?? mode });
     } catch (err: any) {
       console.error('Failed to load status:', err);
     }
@@ -36,15 +40,11 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     setLoading(true);
     setError(null);
     try {
-      const result = await bridge.startProxy({ port: proxyPort, mode, targetUrl });
-      if (result.success) {
-        setProxyEnabled(true);
-        onStatusChange?.(true);
-      } else {
-        setError(result.error || 'Failed to start proxy');
-      }
+      await bridge.startProxy({ port: proxyPort, mode, targetUrl });
+      setProxyEnabled(true);
+      onStatusChange?.({ running: true, port: proxyPort, mode });
     } catch (err: any) {
-      setError(err.message || 'Failed to start proxy');
+      setError(err.message || String(err) || 'Failed to start proxy');
     } finally {
       setLoading(false);
     }
@@ -54,15 +54,11 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     setLoading(true);
     setError(null);
     try {
-      const result = await bridge.stopProxy();
-      if (result.success) {
-        setProxyEnabled(false);
-        onStatusChange?.(false);
-      } else {
-        setError(result.error || 'Failed to stop proxy');
-      }
+      await bridge.stopProxy();
+      setProxyEnabled(false);
+      onStatusChange?.({ running: false, port: proxyPort, mode });
     } catch (err: any) {
-      setError(err.message || 'Failed to stop proxy');
+      setError(err.message || String(err) || 'Failed to stop proxy');
     } finally {
       setLoading(false);
     }
@@ -203,7 +199,7 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             fontSize: '13px',
             color: '#6fbf6f'
           }}>
-            🟢 Proxy server running on port {proxyPort}
+            🟢 {mode === 'both' ? 'Proxy + Mock' : mode === 'mock' ? 'Mock server' : 'Proxy'} running on port {proxyPort}
           </div>
         )}
 
