@@ -9,10 +9,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
 jobs:
   build:
     strategy:
@@ -67,6 +63,8 @@ jobs:
       - name: Build Tauri app
         run: npm run tauri:build -- --target ${{ matrix.target }}
         env:
+          # Optional: sign update bundles if secrets are configured in repo settings.
+          # Leave unset to build without updater signatures.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
@@ -96,9 +94,76 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
           if-no-files-found: error
 
+  build-arch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: archlinux/archlinux:latest
+
+    steps:
+      - name: Install git (required for checkout in Arch container)
+        run: pacman -Sy --noconfirm git
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update system and install build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel \
+            nodejs \
+            npm \
+            rust \
+            webkit2gtk-4.1 \
+            gtk3 \
+            libsoup3 \
+            openssl \
+            patchelf \
+            dpkg \
+            rpm-tools
+
+      - name: Install root Node.js dependencies
+        run: npm install
+
+      - name: Install webview Node.js dependencies
+        run: cd src-tauri/webview && npm install
+
+      - name: Build Tauri app
+        run: npm run tauri:build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Package for Arch Linux
+        run: |
+          useradd -m builder
+          WORKDIR="$(pwd)"
+          chown -R builder:builder "$WORKDIR"
+          cat > /tmp/run-makepkg.sh << SCRIPT
+          #!/bin/bash
+          set -e
+          cd "$WORKDIR"
+          mkdir -p src-tauri/target/release/bundle/arch
+          PKGDEST="$WORKDIR/src-tauri/target/release/bundle/arch" makepkg -f --nodeps --nocheck --noconfirm
+          SCRIPT
+          chmod +x /tmp/run-makepkg.sh
+          su -s /bin/bash builder /tmp/run-makepkg.sh
+
+      - name: Upload Arch Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apiprox-linux-arch
+          path: src-tauri/target/release/bundle/arch/*.pkg.tar.zst
+          if-no-files-found: error
+
   release:
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/v') && needs.build.result == 'success'
+    needs: [build, build-arch]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      needs.build.result == 'success' &&
+      needs.build-arch.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -120,6 +185,7 @@ jobs:
             artifacts/**/*.dmg
             artifacts/**/*.deb
             artifacts/**/*.rpm
+            artifacts/**/*.pkg.tar.zst
           draft: true
           generate_release_notes: true
         env:
