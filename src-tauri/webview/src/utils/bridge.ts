@@ -134,22 +134,43 @@ export const bridge = {
     return invoke('get_file_watches');
   },
 
-  async addFileWatch(watch: any): Promise<any> {
+  async addFileWatch(watch: {
+    id: string;
+    name: string;
+    enabled: boolean;
+    requestFile: string;
+    responseFile: string;
+    correlationIdElements: string[];
+  }): Promise<any> {
     return invoke('add_file_watch', { watch });
   },
 
-  async updateFileWatch(id: string, watch: any): Promise<any> {
+  async updateFileWatch(id: string, watch: {
+    id: string;
+    name: string;
+    enabled: boolean;
+    requestFile: string;
+    responseFile: string;
+    correlationIdElements: string[];
+  }): Promise<any> {
     return invoke('update_file_watch', { id, watch });
+  },
+
+  /** Returns all current in-memory SOAP pairs (optionally filtered by watchId). Use on mount to restore state. */
+  async getSoapPairs(watchId?: string): Promise<any> {
+    return invoke('get_soap_pairs', { watchId: watchId ?? null });
   },
 
   async deleteFileWatch(id: string): Promise<any> {
     return invoke('delete_file_watch', { id });
   },
 
+  /** @deprecated Pairs are now driven by real-time watcher-soap-event. Returns empty array. */
   async getFileWatchEvents(limit?: number): Promise<any> {
     return invoke('get_watcher_events', { limit: limit ?? null });
   },
 
+  /** Clears all in-memory pair history on the Rust side. */
   async clearFileWatchEvents(): Promise<any> {
     return invoke('clear_watcher_events');
   },

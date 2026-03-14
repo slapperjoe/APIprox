@@ -208,6 +208,14 @@ pub struct BreakpointResolution {
 // File Watcher
 // ---------------------------------------------------------------------------
 
+fn default_correlation_id_elements() -> Vec<String> {
+    vec![
+        "CorrelationId".to_string(),
+        "MessageId".to_string(),
+        "TraceId".to_string(),
+    ]
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileWatch {
@@ -215,20 +223,52 @@ pub struct FileWatch {
     pub name: String,
     #[serde(default = "default_true")]
     pub enabled: bool,
-    pub path: String,
-    pub description: Option<String>,
+    /// Absolute path to the XML file written with SOAP requests.
+    pub request_file: String,
+    /// Absolute path to the XML file written with SOAP responses.
+    pub response_file: String,
+    /// SOAP header element names to use as correlation IDs.
+    #[serde(default = "default_correlation_id_elements")]
+    pub correlation_id_elements: Vec<String>,
 }
 
+/// A single captured SOAP request or response snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WatcherEvent {
+pub struct SoapMessage {
     pub id: String,
-    pub timestamp: i64,
     pub watch_id: String,
-    pub watch_name: String,
+    pub timestamp: i64,
+    /// "request" | "response"
+    pub message_type: String,
     pub file_path: String,
-    /// "created" | "modified" | "deleted" | "renamed"
-    pub event_kind: String,
+    pub content: String,
+    pub operation_name: Option<String>,
+    pub correlation_id: Option<String>,
+}
+
+/// A matched or pending request/response pair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoapPair {
+    pub id: String,
+    pub watch_id: String,
+    pub operation_name: Option<String>,
+    pub request: Option<SoapMessage>,
+    pub response: Option<SoapMessage>,
+    /// "pending" | "matched"
+    pub status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Event emitted to the webview on `"watcher-soap-event"`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatcherSoapEvent {
+    /// "new_request" | "pair_matched" | "orphan_response"
+    pub event_type: String,
+    pub pair: SoapPair,
 }
 
 // ---------------------------------------------------------------------------

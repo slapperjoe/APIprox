@@ -10,6 +10,7 @@
   "dependencies": {
     "@apinox/request-editor": "file:../../../APInox/packages/request-editor",
     "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-os": "^2.3.2",
     "lucide-react": "^0.263.1",
     "react": "^18.2.0",

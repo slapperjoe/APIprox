@@ -1,12 +1,13 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::models::{FileWatch, WatcherEvent};
+use crate::models::{FileWatch, SoapPair};
+use super::pairing_engine::PairingEngine;
 
-/// Manages file watch configurations and recent events.
+/// Manages file watch configurations and the in-memory SOAP pair history.
 #[derive(Debug, Default)]
 pub struct FileWatcherService {
     pub watches: Vec<FileWatch>,
-    pub events: Vec<WatcherEvent>,
+    pub engine: PairingEngine,
 }
 
 pub type SharedFileWatcherService = Arc<Mutex<FileWatcherService>>;
@@ -39,23 +40,12 @@ impl FileWatcherService {
         self.watches.len() != before
     }
 
-    pub fn add_event(&mut self, event: WatcherEvent) {
-        self.events.push(event);
-        // Keep last 500 events
-        if self.events.len() > 500 {
-            self.events.drain(..self.events.len() - 500);
-        }
+    pub fn get_pairs(&self, watch_id: Option<&str>) -> Vec<SoapPair> {
+        self.engine.get_pairs(watch_id)
     }
 
-    pub fn get_events(&self, limit: Option<usize>) -> Vec<WatcherEvent> {
-        let events = &self.events;
-        match limit {
-            Some(n) => events.iter().rev().take(n).rev().cloned().collect(),
-            None => events.clone(),
-        }
-    }
-
-    pub fn clear_events(&mut self) {
-        self.events.clear();
+    pub fn clear_pairs(&mut self, watch_id: Option<&str>) {
+        self.engine.clear_pairs(watch_id);
     }
 }
+

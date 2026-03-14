@@ -180,15 +180,16 @@ mod tests {
             id: "w1".to_string(),
             name: "Temp Watcher".to_string(),
             enabled: true,
-            path: "/tmp".to_string(),
-            description: Some("watches /tmp".to_string()),
+            request_file: "/tmp/request.xml".to_string(),
+            response_file: "/tmp/response.xml".to_string(),
+            correlation_id_elements: vec!["CorrelationId".to_string()],
         }];
 
         storage.save_file_watches(&watches).unwrap();
         let loaded = storage.load_file_watches();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].id, "w1");
-        assert_eq!(loaded[0].path, "/tmp");
+        assert_eq!(loaded[0].request_file, "/tmp/request.xml");
         assert!(loaded[0].enabled);
     }
 

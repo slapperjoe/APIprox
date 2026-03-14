@@ -1,45 +1,66 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { listen } from '@tauri-apps/api/event';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { MonacoRequestEditor, MonacoResponseViewer, EditorSettingsProvider, useEditorSettings, DEFAULT_EDITOR_SETTINGS } from '@apinox/request-editor';
+import type { EditorSettings } from '@apinox/request-editor';
 import { bridge } from '../utils/bridge';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface FileWatch {
   id: string;
   name: string;
-  path: string;
-  pattern?: string;
   enabled: boolean;
-  recursive: boolean;
-  createdAt: string;
+  requestFile: string;
+  responseFile: string;
+  correlationIdElements: string[];
 }
 
-interface FileChangeEvent {
+interface SoapMessage {
+  id: string;
   watchId: string;
-  watchName: string;
-  eventType: 'created' | 'modified' | 'deleted' | 'renamed';
+  timestamp: number;
+  messageType: string;
   filePath: string;
-  timestamp: string;
-  size?: number;
-  content?: string;
-  pairingKey?: string;
-  messageType?: 'request' | 'response';
+  content: string;
+  operationName?: string;
+  correlationId?: string;
 }
 
-interface PairedEvents {
-  pairingKey: string;
-  request?: FileChangeEvent;
-  response?: FileChangeEvent;
-  timestamp: string;
+interface SoapPair {
+  id: string;
+  watchId: string;
+  operationName?: string;
+  request?: SoapMessage;
+  response?: SoapMessage;
+  status: 'pending' | 'matched';
+  createdAt: number;
+  updatedAt: number;
 }
+
+interface WatcherSoapEvent {
+  eventType: string;
+  pair: SoapPair;
+}
+
+// ---------------------------------------------------------------------------
+// Styled components
+// ---------------------------------------------------------------------------
 
 const Container = styled.div`
   display: flex;
   height: 100%;
   background: #1e1e1e;
+  color: #d4d4d4;
+  font-size: 13px;
 `;
 
 const Sidebar = styled.div`
-  width: 300px;
+  width: 240px;
+  min-width: 200px;
   background: #252526;
   border-right: 1px solid #3e3e42;
   display: flex;
@@ -47,31 +68,12 @@ const Sidebar = styled.div`
 `;
 
 const SidebarHeader = styled.div`
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid #3e3e42;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  
-  h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 500;
-  }
-`;
-
-const AddButton = styled.button`
-  background: #0e639c;
-  border: none;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 12px;
-  
-  &:hover {
-    background: #1177bb;
-  }
+  h3 { margin: 0; font-size: 13px; font-weight: 600; }
 `;
 
 const WatchList = styled.div`
@@ -80,700 +82,935 @@ const WatchList = styled.div`
 `;
 
 const WatchItem = styled.div<{ $active: boolean }>`
-  padding: 12px 16px;
-  border-bottom: 1px solid #3e3e42;
+  padding: 10px 14px;
+  border-bottom: 1px solid #2d2d30;
   cursor: pointer;
-  background: ${props => props.$active ? '#37373d' : 'transparent'};
-  
-  &:hover {
-    background: #2a2d2e;
-  }
+  background: ${p => p.$active ? '#37373d' : 'transparent'};
+  &:hover { background: ${p => p.$active ? '#37373d' : '#2a2d2e'}; }
 `;
 
 const WatchName = styled.div`
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  margin-bottom: 4px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin-bottom: 2px;
 `;
 
 const WatchPath = styled.div`
-  font-size: 11px;
+  font-size: 10px;
   color: #858585;
-  margin-bottom: 4px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-const WatchPattern = styled.div`
-  font-size: 10px;
-  color: #6a9955;
 `;
 
 const StatusBadge = styled.span<{ $enabled: boolean }>`
   font-size: 10px;
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 3px;
-  background: ${props => props.$enabled ? '#4d9e4d' : '#858585'};
+  background: ${p => p.$enabled ? '#0e639c' : '#555'};
   color: white;
 `;
 
-const MainContent = styled.div`
+const WatchActions = styled.div`
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+`;
+
+// Main area: pair list + detail panel
+const MainArea = styled.div`
   flex: 1;
+  display: flex;
+  overflow: hidden;
+`;
+
+const PairList = styled.div`
+  width: 280px;
+  min-width: 220px;
+  border-right: 1px solid #3e3e42;
   display: flex;
   flex-direction: column;
 `;
 
-const ContentHeader = styled.div`
-  padding: 12px 16px;
+const PairListHeader = styled.div`
+  padding: 10px 14px;
   border-bottom: 1px solid #3e3e42;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  
-  h2 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 500;
-  }
+  h3 { margin: 0; font-size: 13px; font-weight: 600; }
 `;
 
-const EventList = styled.div`
+const PairScroll = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
 `;
 
-const PairContainer = styled.div`
-  background: #252526;
-  border: 2px solid #0e639c;
-  border-radius: 4px;
-  padding: 16px;
-  margin-bottom: 12px;
+const PairRow = styled.div<{ $active: boolean }>`
+  padding: 10px 14px;
+  border-bottom: 1px solid #2d2d30;
+  cursor: pointer;
+  background: ${p => p.$active ? '#37373d' : 'transparent'};
+  &:hover { background: ${p => p.$active ? '#37373d' : '#2a2d2e'}; }
 `;
 
-const PairHeader = styled.div`
+const PairRowHeader = styled.div`
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  justify-content: space-between;
+  margin-bottom: 3px;
+`;
+
+const OperationName = styled.div`
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+`;
+
+const MatchBadge = styled.span<{ $matched: boolean }>`
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: ${p => p.$matched ? '#3a6e3a' : '#7a5a1e'};
+  color: ${p => p.$matched ? '#89d185' : '#ddb165'};
+  flex-shrink: 0;
+  margin-left: 6px;
+`;
+
+const PairTime = styled.div`
+  font-size: 10px;
+  color: #858585;
+`;
+
+// Detail panel
+const DetailPanel = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const DetailHeader = styled.div`
+  padding: 10px 16px;
   border-bottom: 1px solid #3e3e42;
-  
-  h4 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #252526;
+`;
+
+const DetailTitle = styled.div`
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+`;
+
+const DetailBody = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const EditorPane = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-bottom: 1px solid #3e3e42;
+  &:last-child { border-bottom: none; }
+`;
+
+const PaneLabel = styled.div`
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c8c8c8;
+  background: #252526;
+  border-bottom: 1px solid #2d2d30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const GearBtn = styled.button`
+  background: none;
+  border: none;
+  color: #858585;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  &:hover { color: #d4d4d4; background: #3c3c3c; }
+`;
+
+const SettingsPopup = styled.div<{ $top: number; $right: number }>`
+  position: fixed;
+  top: ${p => p.$top}px;
+  right: ${p => p.$right}px;
+  z-index: 1000;
+  background: #2d2d30;
+  border: 1px solid #3e3e42;
+  border-radius: 4px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+
+  .settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .settings-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b6b6b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  label.row {
+    font-size: 12px;
+    color: #c8c8c8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    input[type="checkbox"] { cursor: pointer; }
+  }
+
+  label.col {
+    font-size: 12px;
+    color: #c8c8c8;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  select, input[type="number"] {
+    background: #3c3c3c;
+    border: 1px solid #555;
+    border-radius: 3px;
+    color: #d4d4d4;
+    font-size: 12px;
+    padding: 3px 6px;
+    width: 100%;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid #3e3e42;
     margin: 0;
-    font-size: 14px;
-    color: #0e639c;
   }
 `;
 
-const PairContent = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-`;
-
-const PairItem = styled.div`
-  background: #1e1e1e;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 12px;
-`;
-
-const PairLabel = styled.div`
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  color: #858585;
-  margin-bottom: 8px;
-`;
-
-const EventItem = styled.div`
+const PaneMeta = styled.div`
+  padding: 3px 14px;
+  font-size: 10px;
+  color: #6b6b6b;
   background: #252526;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 12px;
-  margin-bottom: 8px;
+  border-bottom: 1px solid #2d2d30;
 `;
 
-const EventHeader = styled.div`
+const Placeholder = styled.div`
+  flex: 1;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-`;
-
-const EventType = styled.span<{ $type: string }>`
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 3px;
-  font-weight: 500;
-  text-transform: uppercase;
-  background: ${props => {
-    switch(props.$type) {
-      case 'created': return '#4d9e4d';
-      case 'modified': return '#d7a40e';
-      case 'deleted': return '#e81123';
-      case 'renamed': return '#0e639c';
-      default: return '#858585';
-    }
-  }};
-  color: white;
-`;
-
-const EventTime = styled.span`
-  font-size: 11px;
-  color: #858585;
-`;
-
-const EventPath = styled.div`
+  justify-content: center;
+  color: #555;
   font-size: 12px;
-  color: #d4d4d4;
-  font-family: 'Consolas', monospace;
-  word-break: break-all;
-  margin-bottom: 4px;
 `;
 
-const EventMeta = styled.div`
+const EmptyState = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  gap: 6px;
+  p { margin: 0; font-size: 12px; }
+`;
+
+// Buttons
+const Btn = styled.button`
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
   font-size: 11px;
-  color: #858585;
+  padding: 3px 10px;
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
 `;
 
-const Modal = styled.div`
+const PrimaryBtn = styled(Btn)`
+  background: #0e639c;
+  color: white;
+  &:hover:not(:disabled) { background: #1177bb; }
+`;
+
+const SecondaryBtn = styled(Btn)`
+  background: transparent;
+  color: #d4d4d4;
+  border: 1px solid #3e3e42;
+  &:hover:not(:disabled) { background: #37373d; }
+`;
+
+const DangerBtn = styled(Btn)`
+  background: #c50f1f;
+  color: white;
+  &:hover:not(:disabled) { background: #e81123; }
+`;
+
+const SuccessBtn = styled(Btn)`
+  background: #3a6e3a;
+  color: #89d185;
+  border: 1px solid #3a6e3a;
+  &:hover:not(:disabled) { background: #4d9e4d; }
+`;
+
+const AddBtn = styled(Btn)`
+  background: #0e639c;
+  color: white;
+  padding: 3px 10px;
+  &:hover { background: #1177bb; }
+`;
+
+// Modal
+const Overlay = styled.div`
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0,0,0,.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
 `;
 
-const ModalContent = styled.div`
+const Modal = styled.div`
   background: #252526;
   border: 1px solid #3e3e42;
-  border-radius: 4px;
+  border-radius: 6px;
   width: 500px;
-  max-height: 80vh;
-  overflow-y: auto;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
 `;
 
 const ModalHeader = styled.div`
-  padding: 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid #3e3e42;
-  
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 500;
-  }
+  font-size: 14px;
+  font-weight: 600;
 `;
 
 const ModalBody = styled.div`
-  padding: 16px;
-`;
-
-const FormGroup = styled.div`
-  margin-bottom: 16px;
-  
-  label {
-    display: block;
-    font-size: 12px;
-    margin-bottom: 6px;
-    color: #d4d4d4;
-  }
-  
-  input, select {
-    width: 100%;
-    padding: 6px 8px;
-    background: #1e1e1e;
-    border: 1px solid #3e3e42;
-    border-radius: 3px;
-    color: #d4d4d4;
-    font-size: 13px;
-    font-family: inherit;
-    
-    &:focus {
-      outline: none;
-      border-color: #0e639c;
-    }
-  }
-`;
-
-const CheckboxGroup = styled.div`
+  padding: 16px 18px;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  
-  input[type="checkbox"] {
-    width: auto;
-  }
-  
-  label {
-    margin: 0;
-    font-size: 13px;
-  }
+  flex-direction: column;
+  gap: 12px;
 `;
 
 const ModalFooter = styled.div`
-  padding: 16px;
+  padding: 12px 18px;
   border-top: 1px solid #3e3e42;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
 `;
 
-const Button = styled.button`
-  padding: 6px 16px;
-  border-radius: 3px;
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-`;
-
-const PrimaryButton = styled(Button)`
-  background: #0e639c;
-  color: white;
-  
-  &:hover {
-    background: #1177bb;
-  }
-`;
-
-const SecondaryButton = styled(Button)`
-  background: transparent;
-  color: #d4d4d4;
-  border: 1px solid #3e3e42;
-  
-  &:hover {
-    background: #37373d;
-  }
-`;
-
-const DangerButton = styled(Button)`
-  background: #e81123;
-  color: white;
-  
-  &:hover {
-    background: #c50f1f;
-  }
-`;
-
-const SuccessButton = styled(Button)`
-  background: #4d9e4d;
-  color: white;
-  
-  &:hover {
-    background: #3d8e3d;
-  }
-`;
-
-const EmptyState = styled.div`
+const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #858585;
-  
-  p {
-    margin: 8px 0;
-    font-size: 14px;
+  gap: 4px;
+
+  label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #c8c8c8;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  input, textarea {
+    background: #3c3c3c;
+    border: 1px solid #555;
+    border-radius: 3px;
+    color: #d4d4d4;
+    font-size: 12px;
+    padding: 5px 8px;
+    font-family: 'Consolas', monospace;
+    &:focus { outline: none; border-color: #0e639c; }
+  }
+
+  .hint {
+    font-size: 10px;
+    color: #6b6b6b;
+    margin-top: 2px;
   }
 `;
+
+const FileInput = styled.div`
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+
+  input {
+    flex: 1;
+    min-width: 0;
+  }
+`;
+
+const BrowseBtn = styled.button`
+  background: #3c3c3c;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #d4d4d4;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  &:hover { background: #4a4a4a; border-color: #777; }
+`;
+
+// ---------------------------------------------------------------------------
+// Inner editor panes — must live inside EditorSettingsProvider to use context
+// ---------------------------------------------------------------------------
+
+interface EditorPanesProps {
+  pair: SoapPair;
+  requestPanePx: number | undefined;
+  showSettings: boolean;
+  onToggleSettings: () => void;
+  formatTime: (ts: number) => string;
+}
+
+const EditorPanes: React.FC<EditorPanesProps> = ({
+  pair, requestPanePx, showSettings, onToggleSettings, formatTime,
+}) => {
+  const { settings, updateSettings } = useEditorSettings();
+  const gearBtnRef = useRef<HTMLButtonElement>(null);
+  const [popupPos, setPopupPos] = useState({ top: 0, right: 0 });
+
+  const handleGearClick = () => {
+    if (!showSettings && gearBtnRef.current) {
+      const rect = gearBtnRef.current.getBoundingClientRect();
+      setPopupPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    onToggleSettings();
+  };
+
+  return (
+    <>
+      <EditorPane style={requestPanePx !== undefined ? { flex: `0 0 ${requestPanePx}px` } : {}}>
+        <PaneLabel>
+          <span>Request</span>
+          <div style={{ position: 'relative' }}>
+            <GearBtn ref={gearBtnRef} title="Editor settings" onClick={handleGearClick}>⚙</GearBtn>
+            {showSettings && (
+              <SettingsPopup $top={popupPos.top} $right={popupPos.right}>
+                <div className="settings-section">
+                  <div className="settings-title">Font</div>
+                  <label className="col">
+                    Size
+                    <input
+                      type="number" min={8} max={24}
+                      value={settings.fontSize}
+                      onChange={e => updateSettings({ fontSize: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="col">
+                    Family
+                    <select
+                      value={settings.fontFamily}
+                      onChange={e => updateSettings({ fontFamily: e.target.value })}
+                    >
+                      <option value='Consolas, "Courier New", monospace'>Consolas</option>
+                      <option value='"Fira Code", monospace'>Fira Code</option>
+                      <option value='"JetBrains Mono", monospace'>JetBrains Mono</option>
+                      <option value='"Cascadia Code", monospace'>Cascadia Code</option>
+                      <option value='"Source Code Pro", monospace'>Source Code Pro</option>
+                      <option value='"Courier New", monospace'>Courier New</option>
+                    </select>
+                  </label>
+                </div>
+                <hr />
+                <div className="settings-section">
+                  <div className="settings-title">Display</div>
+                  <label className="row">
+                    <input type="checkbox" checked={settings.showLineNumbers} onChange={e => updateSettings({ showLineNumbers: e.target.checked })} />
+                    Line Numbers
+                  </label>
+                  <label className="row">
+                    <input type="checkbox" checked={settings.showMinimap} onChange={e => updateSettings({ showMinimap: e.target.checked })} />
+                    Minimap
+                  </label>
+                  <label className="row">
+                    <input type="checkbox" checked={settings.prettyPrint} onChange={e => updateSettings({ prettyPrint: e.target.checked })} />
+                    Pretty Print
+                  </label>
+                </div>
+                <hr />
+                <div className="settings-section">
+                  <div className="settings-title">Formatting</div>
+                  <label className="row">
+                    <input type="checkbox" checked={settings.inlineValues} onChange={e => updateSettings({ inlineValues: e.target.checked })} />
+                    Inline Values
+                  </label>
+                  <label className="row">
+                    <input type="checkbox" checked={settings.alignAttributes} onChange={e => updateSettings({ alignAttributes: e.target.checked })} />
+                    Align Attributes
+                  </label>
+                  <label className="row">
+                    <input type="checkbox" checked={settings.hideCausality} onChange={e => updateSettings({ hideCausality: e.target.checked })} />
+                    Hide Causality Data
+                  </label>
+                </div>
+              </SettingsPopup>
+            )}
+          </div>
+        </PaneLabel>
+        {pair.request ? (
+          <>
+            <PaneMeta>
+              {pair.request.filePath} · {formatTime(pair.request.timestamp)}
+            </PaneMeta>
+            <MonacoRequestEditor
+              value={pair.request.content}
+              onChange={() => {}}
+              language="xml"
+              readOnly
+              showLineNumbers={settings.showLineNumbers}
+              showMinimap={settings.showMinimap}
+              fontSize={settings.fontSize}
+              fontFamily={settings.fontFamily}
+            />
+          </>
+        ) : (
+          <Placeholder>No request captured</Placeholder>
+        )}
+      </EditorPane>
+      <EditorPane style={{ flex: 1, minHeight: 0 }}>
+        <PaneLabel><span>Response</span></PaneLabel>
+        {pair.response ? (
+          <>
+            <PaneMeta>
+              {pair.response.filePath} · {formatTime(pair.response.timestamp)}
+            </PaneMeta>
+            <MonacoResponseViewer
+              value={pair.response.content}
+              language="xml"
+              showLineNumbers={settings.showLineNumbers}
+              showMinimap={settings.showMinimap}
+              fontSize={settings.fontSize}
+              fontFamily={settings.fontFamily}
+            />
+          </>
+        ) : (
+          <Placeholder>Waiting for response…</Placeholder>
+        )}
+      </EditorPane>
+    </>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+const DEFAULT_CORR_ELEMENTS = 'CorrelationId, MessageId, TraceId';
 
 export const FileWatcherPage: React.FC = () => {
   const [watches, setWatches] = useState<FileWatch[]>([]);
-  const [events, setEvents] = useState<FileChangeEvent[]>([]);
-  const [selectedWatch, setSelectedWatch] = useState<string | null>(null);
+  const [pairs, setPairs] = useState<SoapPair[]>([]);
+  const [selectedWatchId, setSelectedWatchId] = useState<string | null>(null);
+  const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newWatch, setNewWatch] = useState({
-    name: '',
-    path: '',
-    pattern: '',
-    recursive: true
-  });
+  const [editingWatch, setEditingWatch] = useState<FileWatch | null>(null);
 
+  const [formName, setFormName] = useState('');
+  const [formRequestFile, setFormRequestFile] = useState('');
+  const [formResponseFile, setFormResponseFile] = useState('');
+  const [formCorrElements, setFormCorrElements] = useState(DEFAULT_CORR_ELEMENTS);
+
+  const [showEditorSettings, setShowEditorSettings] = useState(false);
+
+  const detailBodyRef = useRef<HTMLDivElement>(null);
+  const [detailBodyHeight, setDetailBodyHeight] = useState(0);
+
+  // Measure DetailBody whenever the selected pair changes (DetailBody mounts/unmounts
+  // with pair selection). ResizeObserver keeps it live as the window resizes.
+  useEffect(() => {
+    const el = detailBodyRef.current;
+    if (!el) {
+      setDetailBodyHeight(0);
+      return;
+    }
+    // Capture immediately so the first render is correct.
+    setDetailBodyHeight(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(() => {
+      setDetailBodyHeight(el.getBoundingClientRect().height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectedPairId]);
+
+  // Load watches on mount
   useEffect(() => {
     loadWatches();
-    loadEvents();
+    loadPairs();
+  }, []);
 
-    // Listen for real-time watcher events from Rust
-    const unlisten = listen<any>('watcher-event', (event) => {
-      const e = event.payload;
-      // Map Rust WatcherEvent fields to local FileChangeEvent shape
-      const mapped: FileChangeEvent = {
-        watchId: e.watchId,
-        watchName: e.watchName,
-        eventType: e.eventKind || 'modified',
-        filePath: e.filePath,
-        timestamp: new Date(e.timestamp).toISOString(),
-      };
-      setEvents(prev => [mapped, ...prev].slice(0, 1000));
+  // Listen for real-time SOAP pair events
+  useEffect(() => {
+    const unlisten = listen<WatcherSoapEvent>('watcher-soap-event', (event) => {
+      const { pair } = event.payload;
+      setPairs(prev => {
+        const idx = prev.findIndex(p => p.id === pair.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = pair;
+          return next;
+        }
+        return [pair, ...prev];
+      });
     });
-
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
   const loadWatches = async () => {
     try {
       const result = await bridge.getFileWatches();
-      setWatches(Array.isArray(result) ? result : (result.watches || []));
-    } catch (error) {
-      console.error('Failed to load file watches:', error);
+      setWatches(Array.isArray(result) ? result : []);
+    } catch (err) {
+      console.error('Failed to load watches:', err);
     }
   };
 
-  const loadEvents = async () => {
+  const loadPairs = async () => {
     try {
-      const result = await bridge.getFileWatchEvents(100);
-      const raw = Array.isArray(result) ? result : (result.events || []);
-      // Map Rust WatcherEvent fields to local FileChangeEvent shape
-      setEvents(raw.map((e: any) => ({
-        watchId: e.watchId,
-        watchName: e.watchName,
-        eventType: e.eventKind || 'modified',
-        filePath: e.filePath,
-        timestamp: new Date(e.timestamp).toISOString(),
-      })));
-    } catch (error) {
-      console.error('Failed to load events:', error);
+      const result = await bridge.getSoapPairs();
+      if (Array.isArray(result) && result.length > 0) {
+        setPairs(result.sort((a: SoapPair, b: SoapPair) => b.createdAt - a.createdAt));
+      }
+    } catch (err) {
+      console.error('Failed to load existing pairs:', err);
     }
   };
 
-  const handleAddWatch = async () => {
-    if (!newWatch.name || !newWatch.path) {
-      alert('Name and path are required');
+  const openAddModal = () => {
+    setEditingWatch(null);
+    setFormName('');
+    setFormRequestFile('');
+    setFormResponseFile('');
+    setFormCorrElements(DEFAULT_CORR_ELEMENTS);
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (watch: FileWatch) => {
+    setEditingWatch(watch);
+    setFormName(watch.name);
+    setFormRequestFile(watch.requestFile);
+    setFormResponseFile(watch.responseFile);
+    setFormCorrElements(watch.correlationIdElements.join(', '));
+    setShowAddModal(true);
+  };
+
+  const parseCorrElements = (raw: string): string[] =>
+    raw.split(',').map(s => s.trim()).filter(Boolean);
+
+  const browseFile = async (setter: (path: string) => void) => {
+    const selected = await openDialog({
+      multiple: false,
+      filters: [{ name: 'XML Files', extensions: ['xml'] }, { name: 'All Files', extensions: ['*'] }],
+    });
+    if (selected && typeof selected === 'string') {
+      setter(selected);
+    }
+  };
+
+  const handleSaveWatch = async () => {
+    if (!formName || !formRequestFile || !formResponseFile) {
+      alert('Name, request file, and response file are required.');
       return;
     }
-
+    const watchData = {
+      id: editingWatch?.id ?? '',
+      name: formName,
+      enabled: editingWatch?.enabled ?? true,
+      requestFile: formRequestFile,
+      responseFile: formResponseFile,
+      correlationIdElements: parseCorrElements(formCorrElements),
+    };
     try {
-      const watch = {
-        id: '',
-        name: newWatch.name,
-        path: newWatch.path,
-        pattern: newWatch.pattern || null,
-        enabled: true,
-        recursive: newWatch.recursive,
-        createdAt: new Date().toISOString()
-      };
-
-      await bridge.addFileWatch(watch);
+      if (editingWatch) {
+        await bridge.updateFileWatch(editingWatch.id, watchData);
+      } else {
+        await bridge.addFileWatch(watchData);
+      }
       await loadWatches();
       setShowAddModal(false);
-      setNewWatch({ name: '', path: '', pattern: '', recursive: true });
-    } catch (error: any) {
-      alert(`Failed to add watch: ${error}`);
+    } catch (err: any) {
+      alert(`Failed to save watch: ${err}`);
     }
   };
 
-  const handleToggleWatch = async (id: string, enabled: boolean) => {
-    const watch = watches.find((w: any) => w.id === id);
-    if (!watch) return;
+  const handleToggleWatch = async (watch: FileWatch) => {
     try {
-      await bridge.updateFileWatch(id, { ...watch, enabled: !enabled });
+      await bridge.updateFileWatch(watch.id, { ...watch, enabled: !watch.enabled });
       await loadWatches();
-    } catch (error: any) {
-      alert(`Failed to toggle watch: ${error}`);
+    } catch (err: any) {
+      alert(`Failed to toggle watch: ${err}`);
     }
   };
 
   const handleDeleteWatch = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this watch?')) {
-      return;
-    }
-
+    if (!confirm('Delete this watch?')) return;
     try {
       await bridge.deleteFileWatch(id);
       await loadWatches();
-      if (selectedWatch === id) {
-        setSelectedWatch(null);
-      }
-    } catch (error: any) {
-      alert(`Failed to delete watch: ${error.message || error}`);
+      if (selectedWatchId === id) setSelectedWatchId(null);
+      setPairs(prev => prev.filter(p => p.watchId !== id));
+    } catch (err: any) {
+      alert(`Failed to delete watch: ${err}`);
     }
   };
 
-  const handleClearEvents = async () => {
-    if (!confirm('Clear all event history?')) {
-      return;
-    }
-
+  const handleClearPairs = async () => {
+    if (!confirm('Clear all captured pair history?')) return;
     try {
       await bridge.clearFileWatchEvents();
-      await loadEvents();
-    } catch (error) {
-      alert('Failed to clear events');
+      setPairs([]);
+      setSelectedPairId(null);
+    } catch (err) {
+      console.error('Failed to clear pairs:', err);
     }
   };
 
-  const filteredEvents = selectedWatch
-    ? events.filter(e => e.watchId === selectedWatch)
-    : events;
-
-  // Group events into pairs based on pairing key
-  const pairEvents = (events: FileChangeEvent[]): PairedEvents[] => {
-    const pairs: Map<string, PairedEvents> = new Map();
-    
-    for (const event of events) {
-      if (!event.pairingKey || !event.messageType) {
-        continue; // Skip unpaired events
-      }
-      
-      const existing = pairs.get(event.pairingKey);
-      if (existing) {
-        if (event.messageType === 'request') {
-          existing.request = event;
-        } else {
-          existing.response = event;
-        }
-        // Update timestamp to latest
-        existing.timestamp = event.timestamp > existing.timestamp ? event.timestamp : existing.timestamp;
-      } else {
-        pairs.set(event.pairingKey, {
-          pairingKey: event.pairingKey,
-          [event.messageType]: event,
-          timestamp: event.timestamp
-        });
-      }
-    }
-    
-    // Return only complete pairs (both request and response), sorted by timestamp
-    return Array.from(pairs.values())
-      .filter(p => p.request && p.response)
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  };
-
-  const pairedEvents = pairEvents(filteredEvents);
-  const unpairedEvents = filteredEvents.filter(e => !e.pairingKey || !e.messageType);
-
-  const handleCreateMockRule = async (pair: PairedEvents) => {
+  const handleCreateMockRule = async (pair: SoapPair) => {
     if (!pair.request || !pair.response) return;
-    
+    const opName = pair.operationName ?? 'UnknownOperation';
     try {
-      // Extract operation name from request for rule name
-      const operationMatch = pair.request.content?.match(/<([^:>\s]+:)?(\w+)Request>/);
-      const operationName = operationMatch ? operationMatch[2] : 'UnknownOperation';
-      
-      const mockRule = {
+      await bridge.addMockRule({
         id: `mock-${Date.now()}`,
-        name: `${operationName} (from files)`,
+        name: `${opName} (from file watcher)`,
         enabled: true,
-        conditions: [
-          {
-            type: 'xpath' as const,
-            pattern: `${operationName}Request`,
-            isRegex: false
-          }
-        ],
+        conditions: [{ type: 'xpath', pattern: opName, isRegex: false }],
         statusCode: 200,
-        responseBody: pair.response.content || '',
-        delayMs: 0
-      };
-      
-      await bridge.addMockRule(mockRule);
-      alert('Mock rule created successfully!');
-    } catch (error: any) {
-      alert(`Failed to create mock rule: ${error.message || error}`);
+        responseBody: pair.response.content,
+        delayMs: 0,
+      });
+      alert('Mock rule created!');
+    } catch (err: any) {
+      alert(`Failed to create mock rule: ${err}`);
     }
   };
 
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-  };
+  const formatTime = (ms: number) => new Date(ms).toLocaleTimeString();
 
-  const formatSize = (size?: number) => {
-    if (!size) return '';
-    if (size < 1024) return `${size}B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`;
-    return `${(size / (1024 * 1024)).toFixed(1)}MB`;
-  };
+  const visiblePairs = selectedWatchId
+    ? pairs.filter(p => p.watchId === selectedWatchId)
+    : pairs;
+
+  const selectedPair = pairs.find(p => p.id === selectedPairId) ?? null;
+  const selectedWatchName = watches.find(w => w.id === selectedWatchId)?.name;
+
+  // Request pane: size to content but cap at 50% of available height.
+  // Monaco line height at fontSize 12 is ~18px; add overhead for label + meta rows.
+  const LINE_HEIGHT = 18;
+  const PANE_OVERHEAD = 56; // PaneLabel (~28px) + PaneMeta (~22px) + separator
+  const requestLineCount = selectedPair?.request?.content
+    ? selectedPair.request.content.split('\n').length
+    : 0;
+  const requestNaturalPx = requestLineCount * LINE_HEIGHT + PANE_OVERHEAD;
+  const requestPanePx = detailBodyHeight > 0
+    ? Math.min(requestNaturalPx, detailBodyHeight * 0.5)
+    : undefined;
 
   return (
     <Container>
+      {/* ── Left: Watch list ── */}
       <Sidebar>
         <SidebarHeader>
-          <h3>File Watches</h3>
-          <AddButton onClick={() => setShowAddModal(true)}>+ Add</AddButton>
+          <h3>Watches</h3>
+          <AddBtn onClick={openAddModal}>+ Add</AddBtn>
         </SidebarHeader>
         <WatchList>
-          <WatchItem 
-            $active={selectedWatch === null}
-            onClick={() => setSelectedWatch(null)}
-          >
+          <WatchItem $active={selectedWatchId === null} onClick={() => setSelectedWatchId(null)}>
             <WatchName>
               All Watches
-              <StatusBadge $enabled={true}>{events.length} events</StatusBadge>
+              <StatusBadge $enabled={true}>{pairs.length}</StatusBadge>
             </WatchName>
-            <WatchPath>View all file changes</WatchPath>
+            <WatchPath>All captured pairs</WatchPath>
           </WatchItem>
-          {watches.map(watch => (
+          {watches.map(w => (
             <WatchItem
-              key={watch.id}
-              $active={selectedWatch === watch.id}
-              onClick={() => setSelectedWatch(watch.id)}
+              key={w.id}
+              $active={selectedWatchId === w.id}
+              onClick={() => setSelectedWatchId(w.id)}
             >
               <WatchName>
-                {watch.name}
-                <StatusBadge $enabled={watch.enabled}>
-                  {watch.enabled ? 'ON' : 'OFF'}
-                </StatusBadge>
+                {w.name}
+                <StatusBadge $enabled={w.enabled}>{w.enabled ? 'ON' : 'OFF'}</StatusBadge>
               </WatchName>
-              <WatchPath title={watch.path}>{watch.path}</WatchPath>
-              {watch.pattern && <WatchPattern>Pattern: {watch.pattern}</WatchPattern>}
-              <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                <SecondaryButton onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleWatch(watch.id, watch.enabled);
-                }}>
-                  {watch.enabled ? 'Disable' : 'Enable'}
-                </SecondaryButton>
-                <DangerButton onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteWatch(watch.id);
-                }}>
+              <WatchPath title={w.requestFile}>{w.requestFile}</WatchPath>
+              <WatchActions>
+                <SecondaryBtn onClick={e => { e.stopPropagation(); openEditModal(w); }}>Edit</SecondaryBtn>
+                <SecondaryBtn onClick={e => { e.stopPropagation(); handleToggleWatch(w); }}>
+                  {w.enabled ? 'Disable' : 'Enable'}
+                </SecondaryBtn>
+                <DangerBtn onClick={e => { e.stopPropagation(); handleDeleteWatch(w.id); }}>
                   Delete
-                </DangerButton>
-              </div>
+                </DangerBtn>
+              </WatchActions>
             </WatchItem>
           ))}
         </WatchList>
       </Sidebar>
 
-      <MainContent>
-        <ContentHeader>
-          <h2>
-            {selectedWatch 
-              ? watches.find(w => w.id === selectedWatch)?.name || 'Events'
-              : 'All Events'}
-          </h2>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <SecondaryButton onClick={loadEvents}>Refresh</SecondaryButton>
-            <DangerButton onClick={handleClearEvents}>Clear</DangerButton>
-          </div>
-        </ContentHeader>
+      {/* ── Centre: Pair list ── */}
+      <MainArea>
+        <PairList>
+          <PairListHeader>
+            <h3>{selectedWatchName ?? 'All Pairs'}</h3>
+            <SecondaryBtn onClick={handleClearPairs}>Clear</SecondaryBtn>
+          </PairListHeader>
+          <PairScroll>
+            {visiblePairs.length === 0 ? (
+              <EmptyState style={{ padding: '32px 16px' }}>
+                <p>{watches.length === 0 ? 'Add a watch to start.' : 'Waiting for file changes…'}</p>
+              </EmptyState>
+            ) : (
+              visiblePairs.map(pair => (
+                <PairRow
+                  key={pair.id}
+                  $active={selectedPairId === pair.id}
+                  onClick={() => setSelectedPairId(pair.id)}
+                >
+                  <PairRowHeader>
+                    <OperationName title={pair.operationName}>
+                      {pair.operationName ?? '(unknown operation)'}
+                    </OperationName>
+                    <MatchBadge $matched={pair.status === 'matched'}>
+                      {pair.status === 'matched' ? 'Matched' : 'Pending'}
+                    </MatchBadge>
+                  </PairRowHeader>
+                  <PairTime>{formatTime(pair.createdAt)}</PairTime>
+                </PairRow>
+              ))
+            )}
+          </PairScroll>
+        </PairList>
 
-        {filteredEvents.length === 0 ? (
-          <EmptyState>
-            <p>No file changes detected</p>
-            <p style={{ fontSize: '12px' }}>
-              {watches.length === 0 
-                ? 'Add a file watch to start monitoring'
-                : 'Waiting for file system events...'}
-            </p>
-          </EmptyState>
-        ) : (
-          <EventList>
-            {/* Paired Request/Response Events */}
-            {pairedEvents.map((pair, idx) => (
-              <PairContainer key={`pair-${idx}`}>
-                <PairHeader>
-                  <h4>Request/Response Pair - {pair.pairingKey}</h4>
-                  <SuccessButton onClick={() => handleCreateMockRule(pair)}>
+        {/* ── Right: Detail panel ── */}
+        <DetailPanel>
+          {selectedPair ? (
+            <>
+              <DetailHeader>
+                <DetailTitle>{selectedPair.operationName ?? '(unknown operation)'}</DetailTitle>
+                <MatchBadge $matched={selectedPair.status === 'matched'}>
+                  {selectedPair.status === 'matched' ? 'Matched' : 'Pending'}
+                </MatchBadge>
+                {selectedPair.status === 'matched' && (
+                  <SuccessBtn onClick={() => handleCreateMockRule(selectedPair)}>
                     Create Mock Rule
-                  </SuccessButton>
-                </PairHeader>
-                <PairContent>
-                  <PairItem>
-                    <PairLabel>Request</PairLabel>
-                    <EventPath>{pair.request?.filePath}</EventPath>
-                    <EventMeta>
-                      {formatTime(pair.request?.timestamp || '')}
-                      {pair.request?.size !== undefined && ` • ${formatSize(pair.request.size)}`}
-                    </EventMeta>
-                  </PairItem>
-                  <PairItem>
-                    <PairLabel>Response</PairLabel>
-                    <EventPath>{pair.response?.filePath}</EventPath>
-                    <EventMeta>
-                      {formatTime(pair.response?.timestamp || '')}
-                      {pair.response?.size !== undefined && ` • ${formatSize(pair.response.size)}`}
-                    </EventMeta>
-                  </PairItem>
-                </PairContent>
-              </PairContainer>
-            ))}
+                  </SuccessBtn>
+                )}
+              </DetailHeader>
+              <DetailBody ref={detailBodyRef}>
+                <EditorSettingsProvider initialSettings={DEFAULT_EDITOR_SETTINGS}>
+                  <EditorPanes
+                    pair={selectedPair}
+                    requestPanePx={requestPanePx}
+                    showSettings={showEditorSettings}
+                    onToggleSettings={() => setShowEditorSettings(p => !p)}
+                    formatTime={formatTime}
+                  />
+                </EditorSettingsProvider>
+              </DetailBody>
+            </>
+          ) : (
+            <EmptyState>
+              <p>Select a pair to view request &amp; response</p>
+            </EmptyState>
+          )}
+        </DetailPanel>
+      </MainArea>
 
-            {/* Unpaired Individual Events */}
-            {unpairedEvents.map((event, idx) => (
-              <EventItem key={`unpaired-${idx}`}>
-                <EventHeader>
-                  <EventType $type={event.eventType}>{event.eventType}</EventType>
-                  <EventTime>{formatTime(event.timestamp)}</EventTime>
-                </EventHeader>
-                <EventPath>{event.filePath}</EventPath>
-                <EventMeta>
-                  Watch: {event.watchName}
-                  {event.size !== undefined && ` • Size: ${formatSize(event.size)}`}
-                </EventMeta>
-              </EventItem>
-            ))}
-          </EventList>
-        )}
-      </MainContent>
-
+      {/* ── Add / Edit Watch Modal ── */}
       {showAddModal && (
-        <Modal onClick={() => setShowAddModal(false)}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
-            <ModalHeader>
-              <h3>Add File Watch</h3>
-            </ModalHeader>
+        <Overlay onClick={() => setShowAddModal(false)}>
+          <Modal onClick={e => e.stopPropagation()}>
+            <ModalHeader>{editingWatch ? 'Edit Watch' : 'Add Watch'}</ModalHeader>
             <ModalBody>
               <FormGroup>
                 <label>Name *</label>
                 <input
                   type="text"
-                  placeholder="e.g., Application Logs"
-                  value={newWatch.name}
-                  onChange={e => setNewWatch({ ...newWatch, name: e.target.value })}
+                  placeholder="e.g. Booking Service"
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
                 />
               </FormGroup>
               <FormGroup>
-                <label>Path *</label>
-                <input
-                  type="text"
-                  placeholder="e.g., C:\logs or /var/log/app"
-                  value={newWatch.path}
-                  onChange={e => setNewWatch({ ...newWatch, path: e.target.value })}
-                />
+                <label>Request File *</label>
+                <FileInput>
+                  <input
+                    type="text"
+                    placeholder="e.g. C:\logs\request.xml or /tmp/request.xml"
+                    value={formRequestFile}
+                    onChange={e => setFormRequestFile(e.target.value)}
+                  />
+                  <BrowseBtn onClick={() => browseFile(setFormRequestFile)}>Browse…</BrowseBtn>
+                </FileInput>
+                <span className="hint">File where SOAP requests are written</span>
               </FormGroup>
               <FormGroup>
-                <label>Pattern (optional)</label>
+                <label>Response File *</label>
+                <FileInput>
+                  <input
+                    type="text"
+                    placeholder="e.g. C:\logs\response.xml or /tmp/response.xml"
+                    value={formResponseFile}
+                    onChange={e => setFormResponseFile(e.target.value)}
+                  />
+                  <BrowseBtn onClick={() => browseFile(setFormResponseFile)}>Browse…</BrowseBtn>
+                </FileInput>
+                <span className="hint">File where SOAP responses are written</span>
+              </FormGroup>
+              <FormGroup>
+                <label>Correlation ID Elements <span style={{ color: '#6b6b6b', fontWeight: 400, textTransform: 'none' }}>(comma-separated)</span></label>
                 <input
                   type="text"
-                  placeholder="e.g., *.log, **/*.json"
-                  value={newWatch.pattern}
-                  onChange={e => setNewWatch({ ...newWatch, pattern: e.target.value })}
+                  value={formCorrElements}
+                  onChange={e => setFormCorrElements(e.target.value)}
                 />
+                <span className="hint">SOAP header element names used as correlation IDs</span>
               </FormGroup>
-              <CheckboxGroup>
-                <input
-                  type="checkbox"
-                  id="recursive"
-                  checked={newWatch.recursive}
-                  onChange={e => setNewWatch({ ...newWatch, recursive: e.target.checked })}
-                />
-                <label htmlFor="recursive">Watch subdirectories</label>
-              </CheckboxGroup>
             </ModalBody>
             <ModalFooter>
-              <SecondaryButton onClick={() => setShowAddModal(false)}>
-                Cancel
-              </SecondaryButton>
-              <PrimaryButton onClick={handleAddWatch}>
-                Add Watch
-              </PrimaryButton>
+              <SecondaryBtn onClick={() => setShowAddModal(false)}>Cancel</SecondaryBtn>
+              <PrimaryBtn onClick={handleSaveWatch}>
+                {editingWatch ? 'Save' : 'Add Watch'}
+              </PrimaryBtn>
             </ModalFooter>
-          </ModalContent>
-        </Modal>
+          </Modal>
+        </Overlay>
       )}
     </Container>
   );

@@ -574,14 +574,49 @@ export interface PausedTraffic {
 export interface FileWatch {
     id: string;
     name: string;
-    path: string;
-    pattern?: string; // glob pattern (e.g., "*.log", "**/*.json")
     enabled: boolean;
-    recursive: boolean;
-    createdAt: string;
+    /** Absolute path to the XML file written with SOAP requests. */
+    requestFile: string;
+    /** Absolute path to the XML file written with SOAP responses. */
+    responseFile: string;
+    /** SOAP header element names to search for correlation IDs. */
+    correlationIdElements: string[];
 }
 
-/** File change event */
+/** A single captured SOAP request or response snapshot. */
+export interface SoapMessage {
+    id: string;
+    watchId: string;
+    timestamp: number;
+    /** "request" | "response" */
+    messageType: string;
+    filePath: string;
+    content: string;
+    operationName?: string;
+    correlationId?: string;
+}
+
+/** A matched or pending SOAP request/response pair. */
+export interface SoapPair {
+    id: string;
+    watchId: string;
+    operationName?: string;
+    request?: SoapMessage;
+    response?: SoapMessage;
+    /** "pending" | "matched" */
+    status: 'pending' | 'matched';
+    createdAt: number;
+    updatedAt: number;
+}
+
+/** Real-time event emitted on "watcher-soap-event". */
+export interface WatcherSoapEvent {
+    /** "new_request" | "pair_matched" | "orphan_response" */
+    eventType: string;
+    pair: SoapPair;
+}
+
+/** @deprecated Use SoapPair/WatcherSoapEvent instead. */
 export interface FileChangeEvent {
     watchId: string;
     watchName: string;

@@ -143,6 +143,7 @@ pub fn run() {
             commands::filewatcher::add_file_watch,
             commands::filewatcher::update_file_watch,
             commands::filewatcher::delete_file_watch,
+            commands::filewatcher::get_soap_pairs,
             commands::filewatcher::get_watcher_events,
             commands::filewatcher::clear_watcher_events,
             // Certificates

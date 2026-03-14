@@ -6,21 +6,19 @@ APIprox is a desktop HTTP/HTTPS proxy and mock server for API testing, built wit
 
 ### Architecture
 
-**Three-Part Structure:**
+**Two-Part Structure:**
 
-1. **Tauri App (`src-tauri/`)**: Rust desktop shell that manages the sidecar process lifecycle and provides window chrome
-2. **Webview Frontend (`src-tauri/webview/`)**: React/TypeScript UI built with Vite
-3. **Sidecar Backend (`sidecar/`)**: Node.js Express server bundled as standalone binary, handles all proxy/mock/certificate logic
+1. **Tauri App (`src-tauri/`)**: Rust backend containing ALL business logic — proxy, mock server, certificate management, file watching, replace rules, and breakpoints. Manages global app state and exposes functionality to the webview via Tauri IPC commands.
+2. **Webview Frontend (`src-tauri/webview/`)**: React/TypeScript UI built with Vite. Purely display and interaction — no business logic. Communicates with the Rust backend via `bridge.ts`.
 
-**Why Sidecar?** The Node.js backend runs as a separate process from the Rust Tauri app. This allows the Rust layer to remain simple while leveraging Node's rich HTTP proxy ecosystem (`http-proxy`, `express`, `node-forge` for certificates).
+> **Note:** There is no Node.js sidecar. All backend services are implemented in Rust within `src-tauri/src/`.
 
 **Communication Flow:**
-- Tauri app spawns sidecar binary on startup
-- Sidecar selects random port and outputs `SIDECAR_PORT:XXXX` to stdout
-- Rust captures port and emits `sidecar-port` event to webview
-- Webview communicates with sidecar via REST API (`http://localhost:<port>`)
+- Webview calls Rust commands via `invoke()` (Tauri IPC) — wrapped in `bridge.ts`
+- Rust pushes real-time events to the webview via `app.emit("event-name", payload)` / `listen()` in TS
+- No HTTP server or REST API — all communication is in-process via Tauri IPC
 
-**Shared Types:** The `shared/` directory contains TypeScript interfaces used by both webview and sidecar (models for mock rules, breakpoints, traffic events, etc.).
+**Shared Types:** The `shared/` directory contains TypeScript interfaces used by the webview. These mirror the Rust structs (serialised via `serde`) defined in `src-tauri/src/models.rs`.
 
 ## Build & Run Commands
 
@@ -28,7 +26,7 @@ APIprox is a desktop HTTP/HTTPS proxy and mock server for API testing, built wit
 ```bash
 npm run tauri:dev
 ```
-- Builds sidecar binary, installs webview dependencies, starts Tauri in dev mode
+- Installs webview dependencies, starts Tauri in dev mode
 - Webview runs with Vite HMR
 - Rust compiles in debug mode
 
@@ -36,115 +34,80 @@ npm run tauri:dev
 ```bash
 npm run tauri:build
 ```
-- Builds sidecar, webview production bundle, and creates platform-specific installers
+- Builds webview production bundle and creates platform-specific installers
 - Outputs to `src-tauri/target/release/bundle/`
-
-### Build Sidecar Only
-```bash
-npm run build:sidecar
-```
-- Compiles TypeScript sidecar code to `sidecar/dist/`
-- Does not create standalone binary (use `prepare:sidecar` for that)
-
-### Prepare Sidecar Binary
-```bash
-npm run prepare:sidecar
-```
-- Installs sidecar deps, bundles with `ncc`, creates binaries with `pkg`
-- Outputs platform binaries to `sidecar-bundle/` directory
-- Used by dev and build workflows
 
 ## Key Conventions
 
-### Sidecar Binary Paths
-
-**Dev Mode:** `<project-root>/sidecar-bundle/sidecar-<platform>`
-**Production:** `<resource-dir>/sidecar-bundle/sidecar-<platform>`
-
-Platform binaries:
-- Windows: `sidecar-x86_64-pc-windows-msvc.exe`
-- macOS: `sidecar-x86_64-apple-darwin`
-- Linux: `sidecar-x86_64-unknown-linux-gnu`
-
-The Rust code in `src-tauri/src/lib.rs` determines paths based on `cfg!(debug_assertions)`.
-
 ### State Persistence
 
-**Sidecar stores configuration in:** `~/.apiprox/`
-- `mock-rules.json` - Mock rule definitions
-- `breakpoint-rules.json` - Breakpoint configurations  
-- `file-watches.json` - File watcher configurations
+**Rust writes configuration to:** `~/.apiprox/`
+- `mock-rules.json` — Mock rule definitions
+- `breakpoint-rules.json` — Breakpoint configurations
+- `file-watches.json` — File watcher configurations
+- `ca.key` / `ca.crt` — Generated CA certificate
 
-**Tauri stores app preferences via:** `tauri-plugin-store` (handled by Tauri, stored in app data dir)
+**Tauri stores app preferences via:** `tauri-plugin-store` (stored in platform app data dir)
 
-### Communication Between Webview and Sidecar
+### Communication Between Webview and Rust
 
-**Pattern:** Webview makes HTTP requests to sidecar REST API
+**Pattern:** Webview calls Rust commands via `invoke()`. Rust pushes real-time updates via `app.emit()`.
 
-**Bridge Utility:** `src-tauri/webview/src/utils/bridge.ts` wraps sidecar API calls and handles:
-- Port discovery (listens for `sidecar-port` event from Tauri)
-- Base URL construction
-- Request helpers for common endpoints
+**Bridge Utility:** `src-tauri/webview/src/utils/bridge.ts` wraps all `invoke()` calls into typed async methods. All Tauri command calls go through this file.
 
-**Sidecar API Endpoints:** Defined in `sidecar/src/index.ts`:
-- `GET /health` - Health check
-- `POST /proxy/start` - Start proxy server
-- `POST /proxy/stop` - Stop proxy server
-- `GET /proxy/rules` - Get replace rules
-- `POST /proxy/rules` - Create/update replace rules
-- `GET /mock/rules` - Get mock rules
-- `POST /mock/rules` - Create/update mock rules
-- Similar patterns for breakpoints, file watchers, traffic logs
+**Tauri Commands (registered in `src-tauri/src/lib.rs`):**
+- `start_proxy` / `stop_proxy` / `get_proxy_status`
+- `start_mock` / `stop_mock` / `get_mock_status`
+- `get_mock_rules` / `add_mock_rule` / `update_mock_rule` / `delete_mock_rule`
+- `get_replace_rules` / `add_replace_rule` / `update_replace_rule` / `delete_replace_rule`
+- `get_breakpoint_rules` / `add_breakpoint_rule` / `delete_breakpoint_rule` / `set_breakpoint_rules`
+- `get_paused_traffic` / `continue_breakpoint` / `drop_breakpoint`
+- `get_file_watches` / `add_file_watch` / `update_file_watch` / `delete_file_watch`
+- `get_watcher_events` / `clear_watcher_events`
+- `get_certificate_info` / `generate_certificate` / `trust_certificate`
+
+**Real-time Tauri Events (Rust → Webview via `listen()`):**
+- `"proxy-event"` — captured traffic log entries
+- `"watcher-event"` — file system change events
+- `"breakpoint-paused"` — traffic paused at a breakpoint
 
 ### TypeScript Shared Models
 
-All shared types are in `shared/src/models.ts`. Import from `@apiprox/shared` in sidecar or directly in webview.
+All shared types are in `shared/src/models.ts`. Used directly by webview components and bridge.
 
 **Key Models:**
-- `MockRule` - Mock response configuration with conditions
-- `ReplaceRule` - XPath/regex text replacement rule
-- `BreakpointRule` - Traffic pause configuration
-- `FileWatch` - File system watch configuration
-- `ProxyEvent` / `WatcherEvent` - Traffic log entries
+- `MockRule` — Mock response configuration with conditions
+- `ReplaceRule` — XPath/regex text replacement rule
+- `BreakpointRule` — Traffic pause configuration
+- `FileWatch` — File system watch configuration
+- `ProxyEvent` / `WatcherEvent` — Traffic log entries
 
-### Proxy Services Architecture
+### Backend Services Architecture (Rust)
 
-**ProxyService (`sidecar/src/services/ProxyService.ts`):**
-- Main HTTP/HTTPS proxy using `http-proxy` library
-- Handles CONNECT tunneling for HTTPS
-- Applies replace rules via `ReplacerService`
-- Forwards to target URL or mock service
-- Emits traffic events
+All services live in `src-tauri/src/` and are held in `AppState` (managed by Tauri).
 
-**MockService (`sidecar/src/services/MockService.ts`):**
-- Matches requests against `MockRule` conditions
-- Returns configured responses (status, body, headers, delay)
-- Falls through to proxy if `passthroughEnabled` and no match
+**`proxy/`** — HTTP/HTTPS proxy using `hyper`. Handles CONNECT tunneling for HTTPS, applies replace rules, forwards to target URL or mock. Emits `proxy-event` traffic logs.
 
-**ReplacerService (`sidecar/src/services/ReplacerService.ts`):**
-- Applies `ReplaceRule` transformations to request/response bodies
-- Uses `xpath` library for XML element targeting
-- Supports regex and plain text replacement
+**`mock/`** — Mock server. Matches requests against `MockRule` conditions (AND logic). Returns configured responses (status, body, headers, delay). Falls through to proxy if `passthroughEnabled`.
 
-**BreakpointService (`sidecar/src/services/BreakpointService.ts`):**
-- Pauses traffic matching `BreakpointRule` conditions
-- Holds requests/responses in memory until user resumes or modifies
+**`replacer/`** — Applies `ReplaceRule` XPath/regex transformations to request/response bodies. Uses `sxd-document` / `sxd-xpath` for XML targeting.
 
-**FileWatcherService (`sidecar/src/services/FileWatcherService.ts`):**
-- Watches file system paths for changes
-- Pairs request/response files by naming convention
-- Emits file change events to webview
+**`breakpoint/`** — Pauses traffic matching `BreakpointRule` conditions. Holds requests/responses until user resumes, modifies, or drops via UI.
+
+**`filewatcher/`** — Watches file system paths via `notify` crate. Emits `watcher-event` to webview on file changes.
+
+**`certificates/`** — Self-signed CA generation and per-domain certificate signing using the `rcgen` crate. Trust installation via platform CLI tools.
 
 ### Certificate Management
 
-**Self-Signed CA Generation:** `sidecar/src/utils/certUtils.ts` uses `node-forge` to create root CA and sign certificates on-the-fly for intercepted domains.
+**CA Generation:** `src-tauri/src/certificates/manager.rs` generates a root CA and signs per-domain certificates on-the-fly for HTTPS interception.
 
 **Trust Installation:**
 - Windows: Uses `certutil -addstore "Root" cert.pem`
 - macOS: Uses `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain cert.pem`
 - Linux: Copies to `/usr/local/share/ca-certificates/` and runs `update-ca-certificates`
 
-Certificates stored in `~/.apiprox/` directory.
+Certificates stored in `~/.apiprox/`.
 
 ### Component Organization
 
@@ -233,12 +196,15 @@ No automated test suite currently exists. Manual testing workflow:
 
 ## Common Development Tasks
 
-### Adding a New Sidecar Endpoint
 
-1. Define route handler in `sidecar/src/index.ts`
-2. Add types to `shared/src/models.ts` if needed
-3. Create bridge method in `src-tauri/webview/src/utils/bridge.ts`
-4. Call from React component
+### Adding a New Backend Feature
+
+1. Add Rust structs/logic in the relevant `src-tauri/src/<module>/` directory
+2. Add a Tauri command handler in `src-tauri/src/commands/<module>.rs`
+3. Register the command in the `invoke_handler!` list in `src-tauri/src/lib.rs`
+4. Add types to `shared/src/models.ts` if needed
+5. Add a bridge method in `src-tauri/webview/src/utils/bridge.ts`
+6. Call from the React component
 
 ### Adding a New UI Tab
 
@@ -247,12 +213,12 @@ No automated test suite currently exists. Manual testing workflow:
 3. Add tab button to tab bar map
 4. Add conditional render in main content area
 
-### Modifying Proxy Behavior
+### Modifying Proxy/Mock/Replace Behaviour
 
-1. Update `ProxyService.ts` for core proxy logic
-2. Update `ReplacerService.ts` for text transformation
-3. Update `MockService.ts` for mock matching
-4. Ensure changes are compatible with existing rules
+1. Update the relevant Rust service in `src-tauri/src/<proxy|mock|replacer>/`
+2. If the Tauri command signature changes, update the corresponding entry in `src-tauri/src/commands/`
+3. Update `bridge.ts` and shared types if the data shape changes
+4. Ensure changes are compatible with existing persisted rules in `~/.apiprox/`
 
 ### Building for Release
 
