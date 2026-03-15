@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { MonacoRequestEditor, MonacoResponseViewer, EditorSettingsProvider, useEditorSettings, DEFAULT_EDITOR_SETTINGS } from '@apinox/request-editor';
+import { MonacoRequestEditorWithToolbar, MonacoResponseViewer, DEFAULT_EDITOR_SETTINGS } from '@apinox/request-editor';
 import type { EditorSettings } from '@apinox/request-editor';
 import { bridge } from '../utils/bridge';
 
@@ -239,83 +239,7 @@ const PaneLabel = styled.div`
   justify-content: space-between;
 `;
 
-const GearBtn = styled.button`
-  background: none;
-  border: none;
-  color: #858585;
-  cursor: pointer;
-  padding: 2px 4px;
-  line-height: 1;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  border-radius: 3px;
-  &:hover { color: #d4d4d4; background: #3c3c3c; }
-`;
 
-const SettingsPopup = styled.div<{ $top: number; $right: number }>`
-  position: fixed;
-  top: ${p => p.$top}px;
-  right: ${p => p.$right}px;
-  z-index: 1000;
-  background: #2d2d30;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 200px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-
-  .settings-section {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .settings-title {
-    font-size: 10px;
-    font-weight: 700;
-    color: #6b6b6b;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  label.row {
-    font-size: 12px;
-    color: #c8c8c8;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    input[type="checkbox"] { cursor: pointer; }
-  }
-
-  label.col {
-    font-size: 12px;
-    color: #c8c8c8;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  select, input[type="number"] {
-    background: #3c3c3c;
-    border: 1px solid #555;
-    border-radius: 3px;
-    color: #d4d4d4;
-    font-size: 12px;
-    padding: 3px 6px;
-    width: 100%;
-  }
-
-  hr {
-    border: none;
-    border-top: 1px solid #3e3e42;
-    margin: 0;
-  }
-`;
 
 const PaneMeta = styled.div`
   padding: 3px 14px;
@@ -486,119 +410,37 @@ const BrowseBtn = styled.button`
 `;
 
 // ---------------------------------------------------------------------------
-// Inner editor panes — must live inside EditorSettingsProvider to use context
+// Inner editor panes
 // ---------------------------------------------------------------------------
 
 interface EditorPanesProps {
   pair: SoapPair;
   requestPanePx: number | undefined;
-  showSettings: boolean;
-  onToggleSettings: () => void;
   formatTime: (ts: number) => string;
 }
 
 const EditorPanes: React.FC<EditorPanesProps> = ({
-  pair, requestPanePx, showSettings, onToggleSettings, formatTime,
+  pair, requestPanePx, formatTime,
 }) => {
-  const { settings, updateSettings } = useEditorSettings();
-  const gearBtnRef = useRef<HTMLButtonElement>(null);
-  const [popupPos, setPopupPos] = useState({ top: 0, right: 0 });
-
-  const handleGearClick = () => {
-    if (!showSettings && gearBtnRef.current) {
-      const rect = gearBtnRef.current.getBoundingClientRect();
-      setPopupPos({
-        top: rect.bottom + 4,
-        right: window.innerWidth - rect.right,
-      });
-    }
-    onToggleSettings();
-  };
+  const [editorSettings, setEditorSettings] = React.useState<EditorSettings>(DEFAULT_EDITOR_SETTINGS);
 
   return (
     <>
       <EditorPane style={requestPanePx !== undefined ? { flex: `0 0 ${requestPanePx}px` } : {}}>
         <PaneLabel>
           <span>Request</span>
-          <div style={{ position: 'relative' }}>
-            <GearBtn ref={gearBtnRef} title="Editor settings" onClick={handleGearClick}>⚙</GearBtn>
-            {showSettings && (
-              <SettingsPopup $top={popupPos.top} $right={popupPos.right}>
-                <div className="settings-section">
-                  <div className="settings-title">Font</div>
-                  <label className="col">
-                    Size
-                    <input
-                      type="number" min={8} max={24}
-                      value={settings.fontSize}
-                      onChange={e => updateSettings({ fontSize: Number(e.target.value) })}
-                    />
-                  </label>
-                  <label className="col">
-                    Family
-                    <select
-                      value={settings.fontFamily}
-                      onChange={e => updateSettings({ fontFamily: e.target.value })}
-                    >
-                      <option value='Consolas, "Courier New", monospace'>Consolas</option>
-                      <option value='"Fira Code", monospace'>Fira Code</option>
-                      <option value='"JetBrains Mono", monospace'>JetBrains Mono</option>
-                      <option value='"Cascadia Code", monospace'>Cascadia Code</option>
-                      <option value='"Source Code Pro", monospace'>Source Code Pro</option>
-                      <option value='"Courier New", monospace'>Courier New</option>
-                    </select>
-                  </label>
-                </div>
-                <hr />
-                <div className="settings-section">
-                  <div className="settings-title">Display</div>
-                  <label className="row">
-                    <input type="checkbox" checked={settings.showLineNumbers} onChange={e => updateSettings({ showLineNumbers: e.target.checked })} />
-                    Line Numbers
-                  </label>
-                  <label className="row">
-                    <input type="checkbox" checked={settings.showMinimap} onChange={e => updateSettings({ showMinimap: e.target.checked })} />
-                    Minimap
-                  </label>
-                  <label className="row">
-                    <input type="checkbox" checked={settings.prettyPrint} onChange={e => updateSettings({ prettyPrint: e.target.checked })} />
-                    Pretty Print
-                  </label>
-                </div>
-                <hr />
-                <div className="settings-section">
-                  <div className="settings-title">Formatting</div>
-                  <label className="row">
-                    <input type="checkbox" checked={settings.inlineValues} onChange={e => updateSettings({ inlineValues: e.target.checked })} />
-                    Inline Values
-                  </label>
-                  <label className="row">
-                    <input type="checkbox" checked={settings.alignAttributes} onChange={e => updateSettings({ alignAttributes: e.target.checked })} />
-                    Align Attributes
-                  </label>
-                  <label className="row">
-                    <input type="checkbox" checked={settings.hideCausality} onChange={e => updateSettings({ hideCausality: e.target.checked })} />
-                    Hide Causality Data
-                  </label>
-                </div>
-              </SettingsPopup>
-            )}
-          </div>
         </PaneLabel>
         {pair.request ? (
           <>
             <PaneMeta>
               {pair.request.filePath} · {formatTime(pair.request.timestamp)}
             </PaneMeta>
-            <MonacoRequestEditor
+            <MonacoRequestEditorWithToolbar
               value={pair.request.content}
               onChange={() => {}}
               language="xml"
               readOnly
-              showLineNumbers={settings.showLineNumbers}
-              showMinimap={settings.showMinimap}
-              fontSize={settings.fontSize}
-              fontFamily={settings.fontFamily}
+              onSettingsChange={setEditorSettings}
             />
           </>
         ) : (
@@ -615,10 +457,10 @@ const EditorPanes: React.FC<EditorPanesProps> = ({
             <MonacoResponseViewer
               value={pair.response.content}
               language="xml"
-              showLineNumbers={settings.showLineNumbers}
-              showMinimap={settings.showMinimap}
-              fontSize={settings.fontSize}
-              fontFamily={settings.fontFamily}
+              showLineNumbers={editorSettings.showLineNumbers}
+              showMinimap={editorSettings.showMinimap}
+              fontSize={editorSettings.fontSize}
+              fontFamily={editorSettings.fontFamily}
             />
           </>
         ) : (
@@ -648,7 +490,6 @@ export const FileWatcherPage: React.FC = () => {
   const [formResponseFile, setFormResponseFile] = useState('');
   const [formCorrElements, setFormCorrElements] = useState(DEFAULT_CORR_ELEMENTS);
 
-  const [showEditorSettings, setShowEditorSettings] = useState(false);
 
   const detailBodyRef = useRef<HTMLDivElement>(null);
   const [detailBodyHeight, setDetailBodyHeight] = useState(0);
@@ -933,15 +774,11 @@ export const FileWatcherPage: React.FC = () => {
                 )}
               </DetailHeader>
               <DetailBody ref={detailBodyRef}>
-                <EditorSettingsProvider initialSettings={DEFAULT_EDITOR_SETTINGS}>
-                  <EditorPanes
-                    pair={selectedPair}
-                    requestPanePx={requestPanePx}
-                    showSettings={showEditorSettings}
-                    onToggleSettings={() => setShowEditorSettings(p => !p)}
-                    formatTime={formatTime}
-                  />
-                </EditorSettingsProvider>
+                <EditorPanes
+                  pair={selectedPair}
+                  requestPanePx={requestPanePx}
+                  formatTime={formatTime}
+                />
               </DetailBody>
             </>
           ) : (
