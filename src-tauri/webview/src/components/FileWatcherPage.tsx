@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -227,6 +227,16 @@ const EditorPane = styled.div`
   &:last-child { border-bottom: none; }
 `;
 
+const SplitDivider = styled.div<{ $dragging: boolean }>`
+  height: 5px;
+  background: ${p => p.$dragging ? '#0e639c' : '#2d2d30'};
+  cursor: ns-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  user-select: none;
+  &:hover { background: #0e639c; }
+`;
+
 const PaneLabel = styled.div`
   padding: 6px 14px;
   font-size: 13px;
@@ -416,14 +426,17 @@ const BrowseBtn = styled.button`
 interface EditorPanesProps {
   pair: SoapPair;
   requestPanePx: number | undefined;
+  isDragging: boolean;
+  onDividerMouseDown: (e: React.MouseEvent) => void;
+  editorSettings: EditorSettings;
+  onSettingsChange: (s: EditorSettings) => void;
   formatTime: (ts: number) => string;
 }
 
 const EditorPanes: React.FC<EditorPanesProps> = ({
-  pair, requestPanePx, formatTime,
+  pair, requestPanePx, isDragging, onDividerMouseDown,
+  editorSettings, onSettingsChange, formatTime,
 }) => {
-  const [editorSettings, setEditorSettings] = React.useState<EditorSettings>(DEFAULT_EDITOR_SETTINGS);
-
   return (
     <>
       <EditorPane style={requestPanePx !== undefined ? { flex: `0 0 ${requestPanePx}px` } : {}}>
@@ -440,13 +453,15 @@ const EditorPanes: React.FC<EditorPanesProps> = ({
               onChange={() => {}}
               language="xml"
               readOnly
-              onSettingsChange={setEditorSettings}
+              initialSettings={editorSettings}
+              onSettingsChange={onSettingsChange}
             />
           </>
         ) : (
           <Placeholder>No request captured</Placeholder>
         )}
       </EditorPane>
+      <SplitDivider $dragging={isDragging} onMouseDown={onDividerMouseDown} />
       <EditorPane style={{ flex: 1, minHeight: 0 }}>
         <PaneLabel><span>Response</span></PaneLabel>
         {pair.response ? (
@@ -472,6 +487,26 @@ const EditorPanes: React.FC<EditorPanesProps> = ({
 };
 
 // ---------------------------------------------------------------------------
+// Editor settings persistence
+// ---------------------------------------------------------------------------
+
+const EDITOR_SETTINGS_KEY = 'apiprox-editor-settings';
+
+const loadEditorSettings = (): EditorSettings => {
+  try {
+    const raw = localStorage.getItem(EDITOR_SETTINGS_KEY);
+    if (raw) return { ...DEFAULT_EDITOR_SETTINGS, ...JSON.parse(raw) };
+  } catch {}
+  return DEFAULT_EDITOR_SETTINGS;
+};
+
+const saveEditorSettings = (settings: EditorSettings) => {
+  try {
+    localStorage.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {}
+};
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -493,6 +528,14 @@ export const FileWatcherPage: React.FC = () => {
 
   const detailBodyRef = useRef<HTMLDivElement>(null);
   const [detailBodyHeight, setDetailBodyHeight] = useState(0);
+  const [userRequestPx, setUserRequestPx] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(loadEditorSettings);
+
+  const handleSettingsChange = useCallback((settings: EditorSettings) => {
+    setEditorSettings(settings);
+    saveEditorSettings(settings);
+  }, []);
 
   // Measure DetailBody whenever the selected pair changes (DetailBody mounts/unmounts
   // with pair selection). ResizeObserver keeps it live as the window resizes.
@@ -509,6 +552,11 @@ export const FileWatcherPage: React.FC = () => {
     });
     ro.observe(el);
     return () => ro.disconnect();
+  }, [selectedPairId]);
+
+  // Reset user-dragged split when a different pair is selected.
+  useEffect(() => {
+    setUserRequestPx(null);
   }, [selectedPairId]);
 
   // Load watches on mount
@@ -671,17 +719,44 @@ export const FileWatcherPage: React.FC = () => {
   const selectedPair = pairs.find(p => p.id === selectedPairId) ?? null;
   const selectedWatchName = watches.find(w => w.id === selectedWatchId)?.name;
 
-  // Request pane: size to content but cap at 50% of available height.
-  // Monaco line height at fontSize 12 is ~18px; add overhead for label + meta rows.
-  const LINE_HEIGHT = 18;
-  const PANE_OVERHEAD = 56; // PaneLabel (~28px) + PaneMeta (~22px) + separator
+  // Request pane height: Monaco line height at default fontSize is ~19px; overhead
+  // accounts for PaneLabel (~34px) + PaneMeta (~19px) + MonacoRequestEditorWithToolbar
+  // toolbar (~36px) + Monaco internal padding (~12px) = ~101px. Add 3 lines as buffer.
+  const LINE_HEIGHT = 19;
+  const PANE_OVERHEAD = 101;
   const requestLineCount = selectedPair?.request?.content
     ? selectedPair.request.content.split('\n').length
     : 0;
-  const requestNaturalPx = requestLineCount * LINE_HEIGHT + PANE_OVERHEAD;
-  const requestPanePx = detailBodyHeight > 0
-    ? Math.min(requestNaturalPx, detailBodyHeight * 0.5)
+  const requestNaturalPx = (requestLineCount + 3) * LINE_HEIGHT + PANE_OVERHEAD;
+  const calculatedRequestPx = detailBodyHeight > 0
+    ? Math.min(requestNaturalPx, detailBodyHeight * 0.6)
     : undefined;
+
+  // Effective request pane size: prefer user-dragged value over calculated.
+  const effectiveRequestPx = userRequestPx ?? calculatedRequestPx;
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startPx = effectiveRequestPx ?? 0;
+    setIsDragging(true);
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientY - startY;
+      const min = 80;
+      const max = detailBodyHeight > 0 ? detailBodyHeight * 0.85 : 9999;
+      setUserRequestPx(Math.max(min, Math.min(startPx + delta, max)));
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [effectiveRequestPx, detailBodyHeight]);
 
   return (
     <Container>
@@ -776,7 +851,11 @@ export const FileWatcherPage: React.FC = () => {
               <DetailBody ref={detailBodyRef}>
                 <EditorPanes
                   pair={selectedPair}
-                  requestPanePx={requestPanePx}
+                  requestPanePx={effectiveRequestPx}
+                  isDragging={isDragging}
+                  onDividerMouseDown={handleDividerMouseDown}
+                  editorSettings={editorSettings}
+                  onSettingsChange={handleSettingsChange}
                   formatTime={formatTime}
                 />
               </DetailBody>

@@ -8,7 +8,7 @@
     "preview": "npx vite preview"
   },
   "dependencies": {
-    "@apinox/request-editor": "file:../../../APInox/packages/request-editor",
+    "@apinox/request-editor": "file:../../vendor/APInox/packages/request-editor",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-os": "^2.3.2",

@@ -621,22 +621,6 @@ export function MockRulesPage() {
                   value={editingRule.responseBody}
                   onChange={(value) => setEditingRule({ ...editingRule, responseBody: value })}
                   language={contentTypeToLanguage(editingRule.contentType || '')}
-                  theme={{
-                    name: 'apiprox-dark',
-                    isLight: false,
-                    background: '#1e1e1e',
-                    foreground: '#d4d4d4',
-                    lineNumberColor: '#858585',
-                    selectionBackground: '#264f78',
-                    cursorColor: '#aeafad',
-                    inputBackground: '#3c3c3c',
-                    inputBorder: '#3c3c3c',
-                    buttonBackground: '#0e639c',
-                    buttonForeground: '#ffffff',
-                    buttonHoverBackground: '#1177bb',
-                    disabledForeground: '#656565',
-                    errorForeground: '#f48771'
-                  }}
                 />
               </div>
             </div>
