@@ -1,0 +1,3 @@
+[submodule "vendor/APInox"]
+	path = vendor/APInox
+	url = https://github.com/slapperjoe/APInox.git
