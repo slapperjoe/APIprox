@@ -191,7 +191,7 @@ export function BreakpointsPage() {
   return (
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'auto' }}>
       {/* Paused Traffic Queue */}
-      <div style={{ background: '#252526', borderRadius: '6px', padding: '20px' }}>
+      <div>
         <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 500 }}>
           Paused Traffic ({queue.length})
         </h2>

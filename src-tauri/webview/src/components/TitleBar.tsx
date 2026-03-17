@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
+import { version } from '../../package.json';
 
 const TitleBarContainer = styled.div<{ $isMac: boolean }>`
   display: flex;
@@ -26,6 +27,14 @@ const Title = styled.div`
   font-size: 13px;
   color: var(--text-primary);
   font-weight: 500;
+`;
+
+const Version = styled.span`
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: 6px;
+  font-weight: 400;
+  opacity: 0.7;
 `;
 
 const StatusIndicator = styled.div<{ $isMac: boolean }>`
@@ -171,7 +180,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           <MacButton $color="#28c840" onClick={handleMaximize} />
         </WindowControls>
         <TitleBarContent $isMac={true}>
-          <Title>{title}</Title>
+          <Title>{title}<Version>v{version}</Version></Title>
         </TitleBarContent>
         <StatusIndicator $isMac={true}>
           {proxyRunning ? (
@@ -197,7 +206,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   return (
     <TitleBarContainer $isMac={false}>
       <TitleBarContent $isMac={false}>
-        <Title>{title}</Title>
+        <Title>{title}<Version>v{version}</Version></Title>
         <StatusIndicator $isMac={false}>
           {proxyRunning ? (
             <>

@@ -15,11 +15,6 @@ src-tauri/webview/dist/
 src-tauri/webview/build/
 src-tauri/webview/.vite/
 
-# Sidecar Build Output
-sidecar/dist/
-sidecar/build/
-sidecar-bundle/
-
 # TypeScript
 *.tsbuildinfo
 dist/

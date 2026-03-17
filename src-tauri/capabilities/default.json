@@ -26,9 +26,7 @@
     "process:default"
   ],
   "commands": {
-    "allow": [
-      "get_sidecar_port"
-    ],
+    "allow": [],
     "deny": []
   }
 }

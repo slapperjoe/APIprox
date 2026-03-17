@@ -35,13 +35,12 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
       background: '#1e1e1e'
     }}>
       <div style={{
-        padding: '12px 16px',
-        background: '#252526',
-        borderBottom: '1px solid #3e3e42',
-        fontSize: '13px',
-        fontWeight: 500
+        padding: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
       }}>
-        Traffic Log ({logs.length})
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 500 }}>Traffic Log ({logs.length})</h2>
       </div>
 
       <div style={{

@@ -1,6 +1,5 @@
 /**
  * Bridge for communicating with the Rust backend via Tauri invoke().
- * Replaces the old sidecar HTTP bridge.
  */
 import { invoke } from '@tauri-apps/api/core';
 

@@ -107,11 +107,17 @@ const WatchPath = styled.div`
 `;
 
 const StatusBadge = styled.span<{ $enabled: boolean }>`
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: ${p => p.$enabled ? '#0e639c' : '#555'};
-  color: white;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: ${p => p.$enabled ? 'rgba(14,99,156,0.25)' : 'rgba(100,100,100,0.2)'};
+  color: ${p => p.$enabled ? '#6db3e8' : '#888'};
+  border: 1px solid ${p => p.$enabled ? 'rgba(14,99,156,0.5)' : 'rgba(100,100,100,0.4)'};
+  user-select: none;
+  pointer-events: none;
 `;
 
 const WatchActions = styled.div`
@@ -174,13 +180,19 @@ const OperationName = styled.div`
 `;
 
 const MatchBadge = styled.span<{ $matched: boolean }>`
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: ${p => p.$matched ? '#3a6e3a' : '#7a5a1e'};
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: ${p => p.$matched ? 'rgba(58,110,58,0.25)' : 'rgba(122,90,30,0.2)'};
   color: ${p => p.$matched ? '#89d185' : '#ddb165'};
+  border: 1px solid ${p => p.$matched ? 'rgba(58,110,58,0.5)' : 'rgba(122,90,30,0.5)'};
   flex-shrink: 0;
   margin-left: 6px;
+  user-select: none;
+  pointer-events: none;
 `;
 
 const PairTime = styled.div`
