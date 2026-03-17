@@ -44,7 +44,7 @@ jobs:
 
       - name: Build @apinox/request-editor
         working-directory: vendor/APInox/packages/request-editor
-        run: npm install && npm run build
+        run: npm install && npm install --no-save @tauri-apps/api && npm run build
 
       - name: Install webview dependencies
         working-directory: src-tauri/webview
