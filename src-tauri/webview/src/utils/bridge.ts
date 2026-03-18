@@ -73,6 +73,19 @@ export const bridge = {
     return invoke('delete_mock_rule', { id });
   },
 
+  async exportMockCollection(
+    ids: string[],
+    name: string,
+    description: string,
+    filePath: string,
+  ): Promise<void> {
+    return invoke('export_mock_collection', { ids, name, description, filePath });
+  },
+
+  async importMockCollection(filePath: string): Promise<any[]> {
+    return invoke('import_mock_collection', { filePath });
+  },
+
   // ── Replace rules ──────────────────────────────────────────────────────────
   async getReplaceRules(): Promise<any[]> {
     return invoke('get_replace_rules');

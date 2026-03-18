@@ -125,6 +125,8 @@ pub fn run() {
             commands::mock::delete_mock_rule,
             commands::mock::set_mock_record_mode,
             commands::mock::save_mock_rules,
+            commands::mock::export_mock_collection,
+            commands::mock::import_mock_collection,
             // Replace rules
             commands::replacer::get_replace_rules,
             commands::replacer::add_replace_rule,

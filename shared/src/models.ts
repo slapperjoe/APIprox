@@ -487,6 +487,17 @@ export interface MockRule {
     recordedAt?: number;
     /** How many times this rule has been matched */
     hitCount?: number;
+    /** Grouping tags for organising rules into collections */
+    tags?: string[];
+}
+
+/** A portable collection of mock rules that can be shared between developers */
+export interface MockRuleCollection {
+    name: string;
+    description: string;
+    version: string;
+    exportedAt: number;
+    rules: MockRule[];
 }
 
 /** Mock server configuration */

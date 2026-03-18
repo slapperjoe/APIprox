@@ -304,6 +304,7 @@ async fn record_response(
         ),
         delay_ms: None,
         hit_count: 0,
+        tags: Vec::new(),
         recorded_at: Some(Utc::now().timestamp_millis()),
         recorded_from: Some(url.to_string()),
     };

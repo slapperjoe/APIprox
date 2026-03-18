@@ -86,6 +86,19 @@ pub struct MockRule {
     pub hit_count: u64,
     pub recorded_at: Option<i64>,
     pub recorded_from: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// A portable collection of mock rules that can be shared between developers.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MockRuleCollection {
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub exported_at: i64,
+    pub rules: Vec<MockRule>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

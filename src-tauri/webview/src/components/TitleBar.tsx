@@ -11,6 +11,7 @@ const TitleBarContainer = styled.div<{ $isMac: boolean }>`
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   -webkit-app-region: drag;
+  app-region: drag;
   user-select: none;
   position: relative;
 `;
@@ -173,7 +174,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   if (isMac) {
     console.log('[TitleBar] Rendering Mac controls');
     return (
-      <TitleBarContainer $isMac={true}>
+      <TitleBarContainer $isMac={true} data-tauri-drag-region>
         <WindowControls $isMac={true}>
           <MacButton $color="#ff5f57" onClick={handleClose} />
           <MacButton $color="#febc2e" onClick={handleMinimize} />
@@ -204,7 +205,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
 
   console.log('[TitleBar] Rendering Windows controls');
   return (
-    <TitleBarContainer $isMac={false}>
+    <TitleBarContainer $isMac={false} data-tauri-drag-region>
       <TitleBarContent $isMac={false}>
         <Title>{title}<Version>v{version}</Version></Title>
         <StatusIndicator $isMac={false}>

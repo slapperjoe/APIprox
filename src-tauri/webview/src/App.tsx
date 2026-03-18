@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { TitleBar } from './components/TitleBar';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ServerControl } from './components/ServerControl';
 import { TrafficViewer } from './components/TrafficViewer';
 import { RulesPage } from './components/RulesPage';
@@ -20,6 +20,19 @@ function App() {
   const [trafficLogs, setTrafficLogs] = useState<TrafficLog[]>([]);
   const [selectedLog, setSelectedLog] = useState<TrafficLog | null>(null);
   const [pausedCount, setPausedCount] = useState(0);
+
+  // Keep native window title in sync with proxy status
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+    if (proxyEnabled && proxyStatus) {
+      const modeLabel = proxyStatus.mode === 'both' ? 'Proxy + Mock'
+        : proxyStatus.mode === 'mock' ? 'Mock'
+        : 'Proxy';
+      appWindow.setTitle(`APIprox  [🟢 ${modeLabel} :${proxyStatus.port}]`);
+    } else {
+      appWindow.setTitle('APIprox  [🔴 Stopped]');
+    }
+  }, [proxyEnabled, proxyStatus]);
 
   useEffect(() => {
     // Listen for traffic events emitted by the Rust proxy
@@ -52,9 +65,6 @@ function App() {
       color: '#d4d4d4',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
     }}>
-      {/* Custom Title Bar with Window Controls and Status */}
-      <TitleBar title="APIprox" proxyRunning={proxyEnabled} proxyPort={proxyStatus?.port} proxyMode={proxyStatus?.mode} />
-
       {/* Tab Bar */}
       <div style={{
         height: '36px',
