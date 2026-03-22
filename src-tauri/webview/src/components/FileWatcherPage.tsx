@@ -5,6 +5,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { MonacoRequestEditorWithToolbar, MonacoResponseViewer, DEFAULT_EDITOR_SETTINGS } from '@apinox/request-editor';
 import type { EditorSettings } from '@apinox/request-editor';
 import { bridge } from '../utils/bridge';
+import { ConditionPickerModal, suggestConditionsFromSoapXml } from './ConditionPickerModel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -543,6 +544,7 @@ export const FileWatcherPage: React.FC = () => {
   const [userRequestPx, setUserRequestPx] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [editorSettings, setEditorSettings] = useState<EditorSettings>(loadEditorSettings);
+  const [pickerPair, setPickerPair] = useState<SoapPair | null>(null);
 
   const handleSettingsChange = useCallback((settings: EditorSettings) => {
     setEditorSettings(settings);
@@ -703,24 +705,10 @@ export const FileWatcherPage: React.FC = () => {
     }
   };
 
-  const handleCreateMockRule = async (pair: SoapPair) => {
+  const handleCreateMockRule = (pair: SoapPair) => {
     if (!pair.request || !pair.response) return;
-    const opName = pair.operationName ?? 'UnknownOperation';
-    try {
-      await bridge.addMockRule({
-        id: `mock-${Date.now()}`,
-        name: `${opName} (from file watcher)`,
-        enabled: true,
-        conditions: [{ type: 'xpath', pattern: opName, isRegex: false }],
-        statusCode: 200,
-        responseBody: pair.response.content,
-        delayMs: 0,
-      });
-      alert('Mock rule created!');
-    } catch (err: any) {
-      alert(`Failed to create mock rule: ${err}`);
-    }
-  };
+    setPickerPair(pair);
+  };;
 
   const formatTime = (ms: number) => new Date(ms).toLocaleTimeString();
 
@@ -879,6 +867,35 @@ export const FileWatcherPage: React.FC = () => {
           )}
         </DetailPanel>
       </MainArea>
+
+      {/* ── Condition Picker Modal ── */}
+      {pickerPair && pickerPair.request && pickerPair.response && (
+        <ConditionPickerModal
+          suggestions={suggestConditionsFromSoapXml(
+            pickerPair.request.content,
+            pickerPair.operationName,
+          )}
+          onConfirm={async (conditions) => {
+            const opName = pickerPair.operationName ?? 'UnknownOperation';
+            try {
+              await bridge.addMockRule({
+                id: `mock-${Date.now()}`,
+                name: `${opName} (from file watcher)`,
+                enabled: true,
+                conditions,
+                statusCode: 200,
+                responseBody: pickerPair.response!.content,
+                delayMs: 0,
+              });
+              setPickerPair(null);
+              alert('Mock rule created!');
+            } catch (err: any) {
+              alert(`Failed to create mock rule: ${err}`);
+            }
+          }}
+          onCancel={() => setPickerPair(null)}
+        />
+      )}
 
       {/* ── Add / Edit Watch Modal ── */}
       {showAddModal && (

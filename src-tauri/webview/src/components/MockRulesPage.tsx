@@ -387,6 +387,15 @@ function HeadersEditor({
   );
 }
 
+/** Order-independent comparison key for a set of conditions. */
+function normalizeConditions(conditions: MockCondition[]): string {
+  return JSON.stringify(
+    [...conditions]
+      .map(c => ({ type: c.type, pattern: c.pattern, headerName: c.headerName ?? '' }))
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+  );
+}
+
 export function MockRulesPage() {
   const [rules, setRules] = useState<MockRule[]>([]);
   const [editingRule, setEditingRule] = useState<MockRule | null>(null);
@@ -396,6 +405,7 @@ export function MockRulesPage() {
   const [searchText, setSearchText] = useState('');
   const [tagFilter, setTagFilter] = useState('');
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [duplicateConflict, setDuplicateConflict] = useState<{ existing: MockRule; pending: MockRule } | null>(null);
 
   useEffect(() => {
     loadRules();
@@ -498,6 +508,15 @@ export function MockRulesPage() {
       const isNew = !editingRule.id || !rules.find(r => r.id === editingRule.id);
 
       if (isNew) {
+        // Check for a rule whose conditions are identical (order-independent)
+        if (editingRule.conditions.length > 0) {
+          const pendingNorm = normalizeConditions(editingRule.conditions);
+          const duplicate = rules.find(r => normalizeConditions(r.conditions) === pendingNorm);
+          if (duplicate) {
+            setDuplicateConflict({ existing: duplicate, pending: editingRule });
+            return;
+          }
+        }
         await bridge.addMockRule(editingRule);
       } else {
         await bridge.updateMockRule(editingRule.id, editingRule);
@@ -508,6 +527,21 @@ export function MockRulesPage() {
     } catch (error) {
       console.error('Failed to save rule:', error);
       alert('Failed to save rule: ' + (error as Error).message);
+    }
+  }
+
+  async function handleOverwriteDuplicate() {
+    if (!duplicateConflict) return;
+    try {
+      const { existing, pending } = duplicateConflict;
+      // Full replace: keep the existing rule's id but overwrite everything else
+      await bridge.updateMockRule(existing.id, { ...pending, id: existing.id });
+      await reloadRules();
+      setDuplicateConflict(null);
+      setEditingRule(null);
+    } catch (error) {
+      console.error('Failed to overwrite rule:', error);
+      alert('Failed to overwrite rule: ' + (error as Error).message);
     }
   }
 
@@ -745,6 +779,47 @@ export function MockRulesPage() {
       {/* ── Export modal ── */}
       {showExportModal && (
         <ExportModal rules={rules} onClose={() => setShowExportModal(false)} />
+      )}
+
+      {/* ── Duplicate conflict modal ── */}
+      {duplicateConflict && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2100, padding: '20px',
+        }}>
+          <div style={{
+            background: '#252526', borderRadius: '8px', border: '1px solid #3e3e42',
+            padding: '24px', width: '460px', maxWidth: '100%',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: '#cccccc', marginBottom: '10px' }}>
+              Duplicate Conditions Detected
+            </div>
+            <div style={{ fontSize: '12px', color: '#999', marginBottom: '16px', lineHeight: 1.6 }}>
+              An existing rule named{' '}
+              <strong style={{ color: '#cccccc' }}>"{duplicateConflict.existing.name}"</strong>{' '}
+              has the same match conditions. Overwriting it will replace its name, response,
+              headers, and settings with the values you just configured.
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDuplicateConflict(null)}
+                style={{
+                  padding: '7px 16px', background: 'transparent', border: '1px solid #555',
+                  borderRadius: '4px', color: '#cccccc', fontSize: '13px', cursor: 'pointer',
+                }}
+              >Keep Both</button>
+              <button
+                onClick={handleOverwriteDuplicate}
+                style={{
+                  padding: '7px 16px', background: '#c0392b', border: 'none',
+                  borderRadius: '4px', color: 'white', fontSize: '13px', cursor: 'pointer',
+                }}
+              >Overwrite Existing</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Edit / Add modal ── */}
