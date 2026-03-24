@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
+import { platform } from '@tauri-apps/plugin-os';
 import { ServerControl } from './components/ServerControl';
 import { TrafficViewer } from './components/TrafficViewer';
 import { RulesPage } from './components/RulesPage';
@@ -20,6 +21,32 @@ function App() {
   const [trafficLogs, setTrafficLogs] = useState<TrafficLog[]>([]);
   const [selectedLog, setSelectedLog] = useState<TrafficLog | null>(null);
   const [pausedCount, setPausedCount] = useState(0);
+  const [platformOS, setPlatformOS] = useState<string>('unknown');
+  const [isFocused, setIsFocused] = useState(true);
+
+  // Taskbar attention: flash/bounce when breakpoints are held and window is not focused
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+    if (pausedCount > 0 && !isFocused) {
+      console.warn('[APIprox] requestUserAttention(Critical) — pausedCount:', pausedCount, 'isFocused:', isFocused);
+      appWindow.requestUserAttention(UserAttentionType.Critical)
+        .then(() => console.info('[APIprox] requestUserAttention(Critical) succeeded'))
+        .catch((err) => console.error('[APIprox] requestUserAttention(Critical) failed:', err));
+    } else {
+      console.info('[APIprox] requestUserAttention(null) — cancelling attention. pausedCount:', pausedCount, 'isFocused:', isFocused);
+      appWindow.requestUserAttention(null)
+        .catch((err) => console.error('[APIprox] requestUserAttention(null) failed:', err));
+    }
+  }, [pausedCount, isFocused]);
+
+  // Detect platform once on mount (platform() is synchronous in @tauri-apps/plugin-os)
+  useEffect(() => {
+    try {
+      setPlatformOS(platform());
+    } catch {
+      // not in Tauri environment
+    }
+  }, []);
 
   // Keep native window title in sync with proxy status
   useEffect(() => {
@@ -28,13 +55,29 @@ function App() {
       const modeLabel = proxyStatus.mode === 'both' ? 'Proxy + Mock'
         : proxyStatus.mode === 'mock' ? 'Mock'
         : 'Proxy';
-      appWindow.setTitle(`APIprox  [🟢 ${modeLabel} :${proxyStatus.port}]`);
+      // macOS renders color emoji in the title bar; Windows/Linux do not
+      if (platformOS === 'macos') {
+        appWindow.setTitle(`APIprox  [🟢 ${modeLabel} :${proxyStatus.port}]`);
+      } else {
+        appWindow.setTitle(`APIprox  [▶ ${modeLabel} :${proxyStatus.port}]`);
+      }
     } else {
-      appWindow.setTitle('APIprox  [🔴 Stopped]');
+      if (platformOS === 'macos') {
+        appWindow.setTitle('APIprox  [🔴 Stopped]');
+      } else {
+        appWindow.setTitle('APIprox  [■ Stopped]');
+      }
     }
-  }, [proxyEnabled, proxyStatus]);
+  }, [proxyEnabled, proxyStatus, platformOS]);
 
   useEffect(() => {
+    const appWindow = getCurrentWindow();
+
+    // Track window focus for taskbar attention requests
+    const unlistenFocus = appWindow.onFocusChanged(({ payload: focused }) => {
+      setIsFocused(focused);
+    });
+
     // Listen for traffic events emitted by the Rust proxy
     const unlistenTraffic = listen<TrafficLog>('traffic-event', (event) => {
       setTrafficLogs(prev => [event.payload, ...prev].slice(0, 1000));
@@ -50,6 +93,7 @@ function App() {
     });
 
     return () => {
+      unlistenFocus.then(fn => fn());
       unlistenTraffic.then(fn => fn());
       unlistenBreakpoint.then(fn => fn());
     };
@@ -72,8 +116,26 @@ function App() {
         borderBottom: '1px solid #3e3e42',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 8px'
+        padding: '0 8px',
+        gap: '0'
       }}>
+        {/* Status indicator dot — CSS-coloured, works on all platforms */}
+        <div
+          title={proxyEnabled ? 'Server running' : 'Server stopped'}
+          style={{
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            backgroundColor: proxyEnabled ? '#22c55e' : '#ef4444',
+            boxShadow: proxyEnabled
+              ? '0 0 5px #22c55e99'
+              : '0 0 5px #ef444499',
+            flexShrink: 0,
+            marginLeft: '4px',
+            marginRight: '8px',
+            transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+          }}
+        />
         {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'settings', 'help'] as Tab[]).map((tab) => (
           <button
             key={tab}

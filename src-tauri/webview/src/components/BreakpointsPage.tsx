@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { bridge } from '../utils/bridge';
 import { MonacoRequestEditorWithToolbar, HeadersPanel } from '@apinox/request-editor';
@@ -41,6 +41,16 @@ export function BreakpointsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editedBody, setEditedBody] = useState<string>('');
   const [editedHeaders, setEditedHeaders] = useState<Record<string, string>>({});
+  const [autoTimeoutSecs, setAutoTimeoutSecs] = useState<number>(() => {
+    const saved = localStorage.getItem('apiprox-bp-timeout');
+    return saved ? parseInt(saved, 10) : 90;
+  });
+  const [autoTimeoutAction, setAutoTimeoutAction] = useState<'allow' | 'drop'>(() => {
+    const saved = localStorage.getItem('apiprox-bp-timeout-action');
+    return (saved === 'drop') ? 'drop' : 'allow';
+  });
+  const [now, setNow] = useState<number>(Date.now());
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadRules();
@@ -53,6 +63,26 @@ export function BreakpointsPage() {
 
     return () => { unlisten.then(fn => fn()); };
   }, []);
+
+  // Tick every 500 ms to drive progress bars
+  useEffect(() => {
+    tickRef.current = setInterval(() => setNow(Date.now()), 500);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, []);
+
+  // Auto-continue or auto-drop timed-out items
+  useEffect(() => {
+    const totalMs = autoTimeoutSecs * 1000;
+    queue.forEach((item) => {
+      if (now - item.timestamp >= totalMs) {
+        if (autoTimeoutAction === 'drop') {
+          handleDrop(item.id);
+        } else {
+          handleContinue(item.id);
+        }
+      }
+    });
+  }, [now, autoTimeoutAction]);
 
   async function loadRules() {
     try {
@@ -139,8 +169,6 @@ export function BreakpointsPage() {
   }
 
   async function handleDrop(id: string) {
-    if (!confirm('Drop this request/response?')) return;
-
     try {
       await bridge.dropBreakpoint(id);
       await loadQueue();
@@ -192,9 +220,69 @@ export function BreakpointsPage() {
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'auto' }}>
       {/* Paused Traffic Queue */}
       <div>
-        <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 500 }}>
-          Paused Traffic ({queue.length})
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 500 }}>
+            Paused Traffic ({queue.length})
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#858585' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Auto-timeout:
+              <input
+                type="number"
+                min={5}
+                max={600}
+                value={autoTimeoutSecs}
+                onChange={(e) => {
+                  const v = Math.max(5, parseInt(e.target.value, 10) || 90);
+                  setAutoTimeoutSecs(v);
+                  localStorage.setItem('apiprox-bp-timeout', String(v));
+                }}
+                style={{
+                  width: '56px',
+                  padding: '2px 6px',
+                  background: '#3c3c3c',
+                  border: '1px solid #555',
+                  borderRadius: '3px',
+                  color: '#cccccc',
+                  fontSize: '12px',
+                  textAlign: 'center',
+                }}
+              />
+              s
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0', borderRadius: '3px', overflow: 'hidden', border: '1px solid #555' }}>
+              <button
+                onClick={() => { setAutoTimeoutAction('allow'); localStorage.setItem('apiprox-bp-timeout-action', 'allow'); }}
+                style={{
+                  padding: '2px 8px',
+                  fontSize: '12px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: autoTimeoutAction === 'allow' ? '#22c55e' : '#3c3c3c',
+                  color: autoTimeoutAction === 'allow' ? '#fff' : '#858585',
+                  fontWeight: autoTimeoutAction === 'allow' ? 600 : 400,
+                }}
+              >
+                Allow
+              </button>
+              <button
+                onClick={() => { setAutoTimeoutAction('drop'); localStorage.setItem('apiprox-bp-timeout-action', 'drop'); }}
+                style={{
+                  padding: '2px 8px',
+                  fontSize: '12px',
+                  border: 'none',
+                  borderLeft: '1px solid #555',
+                  cursor: 'pointer',
+                  background: autoTimeoutAction === 'drop' ? '#ef4444' : '#3c3c3c',
+                  color: autoTimeoutAction === 'drop' ? '#fff' : '#858585',
+                  fontWeight: autoTimeoutAction === 'drop' ? 600 : 400,
+                }}
+              >
+                Drop
+              </button>
+            </div>
+          </div>
+        </div>
 
         {queue.length === 0 ? (
           <div style={{ padding: '20px', textAlign: 'center', color: '#858585', fontSize: '13px' }}>
@@ -209,9 +297,31 @@ export function BreakpointsPage() {
                   padding: '16px',
                   background: '#1e1e1e',
                   borderRadius: '4px',
-                  border: '1px solid #3e3e42'
+                  border: '1px solid #3e3e42',
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
+                {/* Auto-timeout progress bar */}
+                {(() => {
+                  const totalMs = autoTimeoutSecs * 1000;
+                  const elapsed = now - item.timestamp;
+                  const fraction = Math.max(0, 1 - elapsed / totalMs);
+                  const pct = fraction * 100;
+                  const color = fraction > 0.5 ? '#22c55e' : fraction > 0.25 ? '#f59e0b' : '#ef4444';
+                  return (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      height: '4px',
+                      width: `${pct}%`,
+                      background: color,
+                      transition: 'width 0.4s linear, background 0.4s ease',
+                      borderRadius: '0 0 0 4px',
+                    }} />
+                  );
+                })()}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 500 }}>

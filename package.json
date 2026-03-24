@@ -1,13 +1,16 @@
 {
   "name": "apiprox",
-  "version": "0.1.13",
+  "version": "0.1.19",
   "description": "HTTP/HTTPS Proxy and Mock Server for API Testing",
   "private": true,
   "type": "module",
   "scripts": {
     "tauri:dev": "node scripts/version.js increment && node scripts/version.js sync && cd src-tauri/webview && npm install && cd ../.. && npx tauri dev",
+    "tauri:test": "cd src-tauri/webview && npm install && cd ../.. && npx tauri dev",
     "tauri:build": "node scripts/version.js build",
     "tauri:update": "git submodule update --init --recursive && cd vendor/APInox/packages/request-editor && npm install && npm run build && cd ../../../.. && cd src-tauri/webview && npm install && cd ../.. && cargo fetch --manifest-path src-tauri/Cargo.toml",
+    "clean": "node scripts/clean.js",
+    "clean:rust": "cargo clean --manifest-path src-tauri/Cargo.toml",
     "version:major": "node scripts/version.js bump major",
     "version:minor": "node scripts/version.js bump minor",
     "version:patch": "node scripts/version.js bump patch",
