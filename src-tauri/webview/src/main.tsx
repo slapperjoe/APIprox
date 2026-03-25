@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles/global.css'
+import { tokens } from './styles/tokens'
 import { ThemeProvider, EditorSettingsProvider } from '@apinox/request-editor'
 
 class ErrorBoundary extends React.Component<
@@ -21,8 +22,8 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 20, color: '#f88', fontFamily: 'monospace', background: '#1e1e1e', height: '100vh', overflow: 'auto' }}>
-          <h2 style={{ marginBottom: 12, color: '#ff6b6b' }}>Render Error</h2>
+        <div style={{ padding: 20, color: '#f88', fontFamily: 'monospace', background: tokens.surface.base, height: '100vh', overflow: 'auto' }}>
+          <h2 style={{ marginBottom: 12, color: tokens.text.danger }}>Render Error</h2>
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.5 }}>{this.state.error.stack ?? this.state.error.message}</pre>
         </div>
       );

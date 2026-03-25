@@ -6,6 +6,7 @@ import { MonacoRequestEditorWithToolbar, MonacoResponseViewer, DEFAULT_EDITOR_SE
 import type { EditorSettings } from '@apinox/request-editor';
 import { bridge } from '../utils/bridge';
 import { ConditionPickerModal, suggestConditionsFromSoapXml } from './ConditionPickerModel';
+import { tokens } from '../styles/tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,23 +55,23 @@ interface WatcherSoapEvent {
 const Container = styled.div`
   display: flex;
   height: 100%;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: ${tokens.surface.base};
+  color: ${tokens.text.primary};
   font-size: 13px;
 `;
 
 const Sidebar = styled.div`
   width: 240px;
   min-width: 200px;
-  background: #252526;
-  border-right: 1px solid #3e3e42;
+  background: ${tokens.surface.panel};
+  border-right: 1px solid ${tokens.border.default};
   display: flex;
   flex-direction: column;
 `;
 
 const SidebarHeader = styled.div`
   padding: 10px 14px;
-  border-bottom: 1px solid #3e3e42;
+  border-bottom: 1px solid ${tokens.border.default};
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -86,8 +87,8 @@ const WatchItem = styled.div<{ $active: boolean }>`
   padding: 10px 14px;
   border-bottom: 1px solid #2d2d30;
   cursor: pointer;
-  background: ${p => p.$active ? '#37373d' : 'transparent'};
-  &:hover { background: ${p => p.$active ? '#37373d' : '#2a2d2e'}; }
+  background: ${p => p.$active ? tokens.surface.active : 'transparent'};
+  &:hover { background: ${p => p.$active ? tokens.surface.active : tokens.surface.stripe}; }
 `;
 
 const WatchName = styled.div`
@@ -101,7 +102,7 @@ const WatchName = styled.div`
 
 const WatchPath = styled.div`
   font-size: 10px;
-  color: #858585;
+  color: ${tokens.text.muted};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -115,7 +116,7 @@ const StatusBadge = styled.span<{ $enabled: boolean }>`
   padding: 2px 7px;
   border-radius: 10px;
   background: ${p => p.$enabled ? 'rgba(14,99,156,0.25)' : 'rgba(100,100,100,0.2)'};
-  color: ${p => p.$enabled ? '#6db3e8' : '#888'};
+  color: ${p => p.$enabled ? '#6db3e8' : tokens.text.muted};
   border: 1px solid ${p => p.$enabled ? 'rgba(14,99,156,0.5)' : 'rgba(100,100,100,0.4)'};
   user-select: none;
   pointer-events: none;
@@ -137,14 +138,14 @@ const MainArea = styled.div`
 const PairList = styled.div`
   width: 280px;
   min-width: 220px;
-  border-right: 1px solid #3e3e42;
+  border-right: 1px solid ${tokens.border.default};
   display: flex;
   flex-direction: column;
 `;
 
 const PairListHeader = styled.div`
   padding: 10px 14px;
-  border-bottom: 1px solid #3e3e42;
+  border-bottom: 1px solid ${tokens.border.default};
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -160,8 +161,8 @@ const PairRow = styled.div<{ $active: boolean }>`
   padding: 10px 14px;
   border-bottom: 1px solid #2d2d30;
   cursor: pointer;
-  background: ${p => p.$active ? '#37373d' : 'transparent'};
-  &:hover { background: ${p => p.$active ? '#37373d' : '#2a2d2e'}; }
+  background: ${p => p.$active ? tokens.surface.active : 'transparent'};
+  &:hover { background: ${p => p.$active ? tokens.surface.active : tokens.surface.stripe}; }
 `;
 
 const PairRowHeader = styled.div`
@@ -188,7 +189,7 @@ const MatchBadge = styled.span<{ $matched: boolean }>`
   padding: 2px 8px;
   border-radius: 10px;
   background: ${p => p.$matched ? 'rgba(58,110,58,0.25)' : 'rgba(122,90,30,0.2)'};
-  color: ${p => p.$matched ? '#89d185' : '#ddb165'};
+  color: ${p => p.$matched ? '#89d185' : tokens.syntax.string};
   border: 1px solid ${p => p.$matched ? 'rgba(58,110,58,0.5)' : 'rgba(122,90,30,0.5)'};
   flex-shrink: 0;
   margin-left: 6px;
@@ -198,7 +199,7 @@ const MatchBadge = styled.span<{ $matched: boolean }>`
 
 const PairTime = styled.div`
   font-size: 10px;
-  color: #858585;
+  color: ${tokens.text.muted};
 `;
 
 // Detail panel
@@ -211,11 +212,11 @@ const DetailPanel = styled.div`
 
 const DetailHeader = styled.div`
   padding: 10px 16px;
-  border-bottom: 1px solid #3e3e42;
+  border-bottom: 1px solid ${tokens.border.default};
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #252526;
+  background: ${tokens.surface.panel};
 `;
 
 const DetailTitle = styled.div`
@@ -236,26 +237,26 @@ const EditorPane = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-bottom: 1px solid #3e3e42;
+  border-bottom: 1px solid ${tokens.border.default};
   &:last-child { border-bottom: none; }
 `;
 
 const SplitDivider = styled.div<{ $dragging: boolean }>`
   height: 5px;
-  background: ${p => p.$dragging ? '#0e639c' : '#2d2d30'};
+  background: ${p => p.$dragging ? tokens.status.accentDark : tokens.surface.elevated};
   cursor: ns-resize;
   flex-shrink: 0;
   transition: background 0.15s;
   user-select: none;
-  &:hover { background: #0e639c; }
+  &:hover { background: ${tokens.status.accentDark}; }
 `;
 
 const PaneLabel = styled.div`
   padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
-  color: #c8c8c8;
-  background: #252526;
+  color: ${tokens.text.secondary};
+  background: ${tokens.surface.panel};
   border-bottom: 1px solid #2d2d30;
   display: flex;
   align-items: center;
@@ -267,8 +268,8 @@ const PaneLabel = styled.div`
 const PaneMeta = styled.div`
   padding: 3px 14px;
   font-size: 10px;
-  color: #6b6b6b;
-  background: #252526;
+  color: ${tokens.text.hint};
+  background: ${tokens.surface.panel};
   border-bottom: 1px solid #2d2d30;
 `;
 
@@ -277,7 +278,7 @@ const Placeholder = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #555;
+  color: ${tokens.text.faint};
   font-size: 12px;
 `;
 
@@ -287,7 +288,7 @@ const EmptyState = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #555;
+  color: ${tokens.text.faint};
   gap: 6px;
   p { margin: 0; font-size: 12px; }
 `;
@@ -303,16 +304,16 @@ const Btn = styled.button`
 `;
 
 const PrimaryBtn = styled(Btn)`
-  background: #0e639c;
+  background: ${tokens.status.accentDark};
   color: white;
-  &:hover:not(:disabled) { background: #1177bb; }
+  &:hover:not(:disabled) { background: ${tokens.status.accentHover}; }
 `;
 
 const SecondaryBtn = styled(Btn)`
   background: transparent;
-  color: #d4d4d4;
-  border: 1px solid #3e3e42;
-  &:hover:not(:disabled) { background: #37373d; }
+  color: ${tokens.text.primary};
+  border: 1px solid ${tokens.border.default};
+  &:hover:not(:disabled) { background: ${tokens.surface.active}; }
 `;
 
 const DangerBtn = styled(Btn)`
@@ -329,10 +330,10 @@ const SuccessBtn = styled(Btn)`
 `;
 
 const AddBtn = styled(Btn)`
-  background: #0e639c;
+  background: ${tokens.status.accentDark};
   color: white;
   padding: 3px 10px;
-  &:hover { background: #1177bb; }
+  &:hover { background: ${tokens.status.accentHover}; }
 `;
 
 // Modal
@@ -347,9 +348,9 @@ const Overlay = styled.div`
 `;
 
 const Modal = styled.div`
-  background: #252526;
-  border: 1px solid #3e3e42;
-  border-radius: 6px;
+  background: ${tokens.surface.panel};
+  border: 1px solid ${tokens.border.default};
+  border-radius: ${tokens.radius.lg};
   width: 500px;
   max-width: 90vw;
   box-shadow: 0 8px 32px rgba(0,0,0,.5);
@@ -357,7 +358,7 @@ const Modal = styled.div`
 
 const ModalHeader = styled.div`
   padding: 14px 18px;
-  border-bottom: 1px solid #3e3e42;
+  border-bottom: 1px solid ${tokens.border.default};
   font-size: 14px;
   font-weight: 600;
 `;
@@ -371,7 +372,7 @@ const ModalBody = styled.div`
 
 const ModalFooter = styled.div`
   padding: 12px 18px;
-  border-top: 1px solid #3e3e42;
+  border-top: 1px solid ${tokens.border.default};
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -385,25 +386,25 @@ const FormGroup = styled.div`
   label {
     font-size: 11px;
     font-weight: 600;
-    color: #c8c8c8;
+    color: ${tokens.text.secondary};
     text-transform: uppercase;
     letter-spacing: 0.4px;
   }
 
   input, textarea {
-    background: #3c3c3c;
-    border: 1px solid #555;
-    border-radius: 3px;
-    color: #d4d4d4;
+    background: ${tokens.surface.input};
+    border: 1px solid ${tokens.border.subtle};
+    border-radius: ${tokens.radius.sm};
+    color: ${tokens.text.primary};
     font-size: 12px;
     padding: 5px 8px;
     font-family: 'Consolas', monospace;
-    &:focus { outline: none; border-color: #0e639c; }
+    &:focus { outline: none; border-color: ${tokens.status.accentDark}; }
   }
 
   .hint {
     font-size: 10px;
-    color: #6b6b6b;
+    color: ${tokens.text.hint};
     margin-top: 2px;
   }
 `;
@@ -420,16 +421,16 @@ const FileInput = styled.div`
 `;
 
 const BrowseBtn = styled.button`
-  background: #3c3c3c;
-  border: 1px solid #555;
-  border-radius: 3px;
-  color: #d4d4d4;
+  background: ${tokens.surface.input};
+  border: 1px solid ${tokens.border.subtle};
+  border-radius: ${tokens.radius.sm};
+  color: ${tokens.text.primary};
   font-size: 12px;
   padding: 4px 10px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  &:hover { background: #4a4a4a; border-color: #777; }
+  &:hover { background: ${tokens.surface.hover}; border-color: #777; }
 `;
 
 // ---------------------------------------------------------------------------
@@ -939,7 +940,7 @@ export const FileWatcherPage: React.FC = () => {
                 <span className="hint">File where SOAP responses are written</span>
               </FormGroup>
               <FormGroup>
-                <label>Correlation ID Elements <span style={{ color: '#6b6b6b', fontWeight: 400, textTransform: 'none' }}>(comma-separated)</span></label>
+                <label>Correlation ID Elements <span style={{ color: tokens.text.hint, fontWeight: 400, textTransform: 'none' }}>(comma-separated)</span></label>
                 <input
                   type="text"
                   value={formCorrElements}

@@ -13,7 +13,7 @@ APIprox is a standalone desktop application for intercepting, inspecting, and mo
 
 ### 2. Mock Server
 - **Mock API Responses**: Return predefined responses without hitting real servers
-- **Rule-Based Matching**: Match requests by URL patterns, HTTP methods, headers, or XPath
+- **Rule-Based Matching**: Match requests by URL patterns, HTTP methods, headers, XPath, and more
 - **Flexible Responses**: Configure status codes, headers, response bodies, and delays
 - **Priority System**: Control which rules match first
 
@@ -23,7 +23,17 @@ APIprox is a standalone desktop application for intercepting, inspecting, and mo
 - **Request/Response Targeting**: Apply rules to requests, responses, or both
 - **Real-Time Modification**: Changes applied transparently as traffic flows through
 
-### 4. Certificate Management
+### 4. Breakpoints
+- **Pause Live Traffic**: Intercept and inspect individual requests or responses before forwarding
+- **Edit in Flight**: Modify headers and body before forwarding or returning
+- **Continue or Drop**: Resume traffic unchanged or discard it entirely
+
+### 5. File Watcher
+- **Watch XML Files**: Monitor directories for request/response XML file pairs
+- **Side-by-Side View**: View matched pairs in a split editor
+- **SOAP Workflow Support**: Useful when test tools write request/response XML to disk
+
+### 6. Certificate Management
 - **Self-Signed CA Certificate**: Generate custom root certificate for HTTPS interception
 - **Easy Installation**: One-click trust installation (Windows/macOS/Linux)
 - **Certificate Export**: Download certificate for manual installation
@@ -38,7 +48,7 @@ APIprox is a standalone desktop application for intercepting, inspecting, and mo
    - Choose mode: Proxy, Mock, or Both
    - Set proxy port (default: 8888)
    - Configure target URL (for proxy mode)
-   - Click "Start Server"
+   - Click "Start Proxy"
 
 3. **Configure Your Application**:
    - Set HTTP proxy to `localhost:8888`
@@ -54,14 +64,14 @@ To intercept HTTPS traffic, you need to trust APIprox's certificate:
 
 1. **Generate Certificate**:
    - Go to Settings → Certificate Management
-   - Click "Generate New Certificate"
+   - Click "Generate Certificate"
 
-2. **Trust Certificate**:
-   - Click "Trust Certificate" (requires admin/sudo)
+2. **Install to Trust Store**:
+   - Click "Install to System Trust Store" (requires admin/sudo)
    - Or export and install manually
 
 3. **Verify**:
-   - Status should show "✓ Trusted"
+   - Status should show "✓ Certificate is valid"
    - HTTPS traffic will now be decryptable
 
 **Platform-Specific Notes:**
@@ -193,32 +203,6 @@ All conditions in a rule must match (AND logic). Supported types:
 
 Enable **Regex** on any condition to match the pattern as a regular expression.
 
-### Template Helpers in Response Bodies
-
-Use `{{ }}` helpers anywhere in the response body for dynamic values resolved at request time:
-
-| Helper | Example | Output |
-|---|---|---|
-| `{{now}}` | `{{now}}` | `2026-03-05T07:49:57.141Z` |
-| `{{now 'timestamp'}}` | `{{now 'timestamp'}}` | `1709625797141` |
-| `{{now 'date'}}` | `{{now 'date'}}` | `3/5/2026` |
-| `{{now 'time'}}` | `{{now 'time'}}` | `7:49:57 AM` |
-| `{{uuid}}` | `{{uuid}}` | `3d6f0a1b-c7e2-4f9a-b135-...` |
-| `{{randomInt min max}}` | `{{randomInt 1 100}}` | `42` |
-| `{{randomElement ...}}` | `{{randomElement red green blue}}` | `green` |
-| `{{requestHeader 'name'}}` | `{{requestHeader 'x-request-id'}}` | value of that header |
-| `{{requestBody}}` | `{{requestBody}}` | raw incoming request body |
-
-**Example — JSON with dynamic values:**
-```json
-{
-  "id": "{{uuid}}",
-  "createdAt": "{{now}}",
-  "score": {{randomInt 1 100}},
-  "env": "{{requestHeader 'x-env'}}"
-}
-```
-
 ### Example Mock Rules
 
 **Mock User API:**
@@ -229,6 +213,7 @@ Conditions:
   - Method: GET
 Response:
   Status: 200
+  Content-Type: JSON
   Body:
     {
       "id": 123,
@@ -245,6 +230,7 @@ Conditions:
   - XPath: //GetCustomer/CustomerId
 Response:
   Status: 200
+  Content-Type: XML
   Body:
     <soap:Envelope>
       <soap:Body>
@@ -267,6 +253,47 @@ Response:
 Delay: 30000ms (30 seconds)
 ```
 
+## Breakpoints
+
+The **Breakpoints** tab lets you pause live traffic at a specific phase for inspection and modification.
+
+### Creating a Breakpoint Rule
+
+1. **Go to the Breakpoints tab**
+2. **Click "Add Breakpoint"**
+3. **Configure:**
+   - **Name**: Descriptive label for the rule
+   - **Pause On**: Request, Response, or Both
+   - **Conditions**: URL, Method, Header, or Body Contains patterns to match
+
+### Handling Paused Traffic
+
+When a rule matches, the paused item appears in the queue. For each item you can:
+
+- **Edit & Continue**: Modify headers and/or body in the editor, then forward
+- **Continue**: Pass through unchanged
+- **Drop**: Discard the request entirely
+
+> Paused items auto-resolve after a timeout to prevent the proxy from blocking indefinitely.
+
+## File Watcher
+
+The **File Watcher** tab monitors directories for XML request/response file pairs.
+
+### Adding a Watch
+
+1. **Go to the File Watcher tab**
+2. **Click "Add Watch"**
+3. **Select a directory path** to monitor
+
+### How It Works
+
+- APIprox scans the watched directory for paired request/response XML files automatically
+- Matched pairs appear in the panel
+- Click a pair to view the XML content side by side in a split editor
+
+This is particularly useful for SOAP development workflows where test tools write request and response XML to disk.
+
 ## Traffic Viewer
 
 The traffic viewer shows all intercepted HTTP/HTTPS requests and responses.
@@ -285,45 +312,21 @@ The traffic viewer shows all intercepted HTTP/HTTPS requests and responses.
 Click any row to see:
 - **Request**: Headers, body, timing
 - **Response**: Status, headers, body, timing
-- **Raw Data**: Complete HTTP messages
-
-### Filtering Traffic
-
-Use the search box to filter by:
-- URL patterns
-- HTTP methods
-- Status codes
-- Request/response content
-
-### Clearing Traffic
-
-Click "Clear" to remove all traffic entries from the viewer.
+- **Raw**: Complete HTTP messages as JSON
 
 ## Settings
 
-### Server Settings
-- **Proxy Port**: Port to listen on (default: 8888)
-- **Target URL**: Where to forward proxied requests
-- **Auto-start**: Launch server on app startup
-
 ### Certificate Management
 - **Generate Certificate**: Create new self-signed CA certificate
-- **Trust Certificate**: Install certificate to system trust store
+- **Install to System Trust Store**: Install certificate to system trust store (requires admin)
 - **Export Certificate**: Download certificate file
-- **View Certificate Info**: See certificate details
 
-### Advanced Options
-- **Log Level**: Control verbosity of logs
-- **Request Timeout**: Maximum time to wait for responses
-- **Max Body Size**: Maximum request/response body size to capture
+### HTTPS Configuration
+- **Enable HTTPS Interception**: Toggle HTTPS traffic decryption on/off
+- **Auto-trust generated certificates**: Automatically add new CA certificates to system trust store
 
-## Keyboard Shortcuts
-
-- **Ctrl+R**: Toggle recording
-- **Ctrl+K**: Clear traffic log
-- **Ctrl+,**: Open settings
-- **Ctrl+S**: Save current rule
-- **Escape**: Close modal
+### Default Port
+- Set the default proxy port used for new sessions (default: 8888)
 
 ## Common Use Cases
 
@@ -345,13 +348,18 @@ Click "Clear" to remove all traffic entries from the viewer.
 2. Set target to production API
 3. Add replace rules to sanitize sensitive data
 4. Capture traffic for analysis
-5. Export traffic logs for review
 
 ### Performance Testing
 1. Create mock rules with various delays
 2. Test how your app handles slow responses
 3. Simulate timeouts and errors
 4. Measure impact on user experience
+
+### Intercepting and Modifying Live Traffic
+1. Start APIprox in Proxy mode
+2. Add a Breakpoint rule targeting the URL of interest
+3. Trigger a request in your app
+4. Edit the paused request/response and click Edit & Continue
 
 ## Troubleshooting
 
@@ -360,7 +368,7 @@ Click "Clear" to remove all traffic entries from the viewer.
 
 **Solutions:**
 - Re-generate certificate in Settings
-- Manually install certificate (Settings → Export)
+- Manually install certificate (Settings → Export Certificate)
 - Check system trust store
 - Restart browser/application after installing
 
@@ -368,7 +376,7 @@ Click "Clear" to remove all traffic entries from the viewer.
 **Symptom**: Traffic viewer is empty
 
 **Solutions:**
-- Verify proxy settings in your application
+- Verify proxy settings in your application point to `localhost:<port>`
 - Check server is running (green status indicator)
 - Ensure port is not blocked by firewall
 - Try HTTP endpoint first (no certificate needed)
@@ -392,13 +400,20 @@ Click "Clear" to remove all traffic entries from the viewer.
 - Ensure port is not already in use
 - Try different port number
 
+### Breakpoint Not Triggering
+**Symptom**: Traffic passes through without pausing
+
+**Solutions:**
+- Ensure the proxy server is running
+- Verify the breakpoint rule is enabled
+- Check condition patterns match the target request
+
 ## Best Practices
 
 ### Replace Rules
 - Use specific XPath expressions to avoid unintended replacements
 - Test rules with representative traffic first
-- Document complex regex patterns
-- Use descriptive names
+- Document complex regex patterns with descriptive names
 - Disable rules when not needed
 
 ### Mock Server
@@ -406,23 +421,23 @@ Click "Clear" to remove all traffic entries from the viewer.
 - Set the correct Content-Type for your response (XML, JSON, etc.)
 - Include appropriate response headers when needed
 - Use delays to simulate real network conditions
-- Use template helpers (`{{uuid}}`, `{{now}}`, etc.) to generate dynamic responses
 - Version your mock data
 - Organize rules by feature/module
 
+### Breakpoints
+- Clear breakpoint rules when done — they apply to all matching traffic
+- Use specific URL conditions to avoid pausing unintended requests
+- Remember paused traffic auto-expires; don't leave breakpoints active unattended
+
 ### Certificate Management
-- Generate new certificates periodically
-- Keep certificate private key secure
 - Export certificate before regenerating
 - Document installation process for team
+- Remove certificate from system trust store when no longer needed
 - Test with multiple browsers/applications
 
 ### Traffic Recording
-- Clear logs regularly to save memory
 - Filter traffic to reduce noise
-- Export important traffic sessions
 - Use replace rules to sanitize logs before sharing
-- Archive traffic logs for debugging
 
 ## Security Considerations
 
@@ -431,20 +446,18 @@ Click "Clear" to remove all traffic entries from the viewer.
 - Installing it to system trust store allows **any application** to intercept HTTPS
 - Only use on development/test machines
 - Never install on production systems
-- Remove certificate when not needed
+- Remove certificate from trust store when not needed
 
 ### Data Privacy
 - APIprox sees all traffic passing through it (including passwords, tokens, etc.)
 - Use replace rules to mask sensitive data in logs
 - Clear traffic logs after debugging
 - Don't share raw traffic logs
-- Export functionality redacts secrets
 
 ### Network Security
 - APIprox runs a local server (localhost only by default)
 - Ensure firewall rules are appropriate
 - Don't expose proxy port to network
-- Use strong passwords if authentication is added
 
 ## FAQ
 
@@ -461,19 +474,27 @@ A: Yes, configure your mobile device's WiFi proxy settings to point to your comp
 A: **APIprox** is for HTTP/HTTPS traffic interception and mocking. **APInox** is for SOAP API testing and development. Both can work together - APIprox can intercept traffic from APInox.
 
 **Q: Can I save and load mock rule sets?**
-A: Yes, rules are stored in configuration files and persist between sessions. You can export/import rule sets.
+A: Yes, rules are stored in configuration files and persist between sessions.
 
 **Q: Does APIprox support WebSocket?**
 A: Not currently. APIprox focuses on HTTP/HTTPS REST and SOAP traffic.
 
 **Q: Can I automate rule creation?**
-A: Rules are stored in JSON format and can be created/modified programmatically.
+A: Rules are stored in JSON format in `~/.apiprox/` and can be created/modified programmatically.
+
+## Configuration Files
+
+All stored in `~/.apiprox/`:
+
+- **mock-rules.json** — Mock rule definitions
+- **replace-rules.json** — Replace rule definitions
+- **breakpoint-rules.json** — Breakpoint rule configurations
+- **file-watches.json** — File watcher configurations
+- **ca.crt** / **ca.key** — CA certificate and private key
 
 ## Support & Resources
 
 - **GitHub Issues**: Report bugs and request features
-- **Documentation**: Full docs at [github.com/yourusername/apiprox/docs]
-- **Community**: Discussions and Q&A
 - **APInox Integration**: Use together for complete API testing workflow
 
 ## License
@@ -483,4 +504,4 @@ A: Rules are stored in JSON format and can be created/modified programmatically.
 ---
 
 **Version**: 0.1.0  
-**Last Updated**: 2026-03-05
+**Last Updated**: 2026-03-26

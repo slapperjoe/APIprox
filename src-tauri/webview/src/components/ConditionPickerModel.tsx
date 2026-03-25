@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { tokens } from '../styles/tokens';
 
 // ---------------------------------------------------------------------------
 // Shared types (re-exported so importers don't need a separate import)
@@ -201,9 +202,9 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
 
   const inputStyle: React.CSSProperties = {
     flexShrink: 0, width: '230px',
-    padding: '3px 7px', background: '#3c3c3c',
-    border: '1px solid #555', borderRadius: '3px',
-    color: '#cccccc', fontSize: '11px', fontFamily: 'Consolas, monospace',
+    padding: '3px 7px', background: tokens.surface.input,
+    border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.sm,
+    color: tokens.text.secondary, fontSize: tokens.fontSize.xs, fontFamily: 'Consolas, monospace',
   };
 
   return (
@@ -217,7 +218,7 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
     >
       <div
         style={{
-          background: '#252526', borderRadius: '8px', border: '1px solid #3e3e42',
+          background: tokens.surface.panel, borderRadius: '8px', border: `1px solid ${tokens.border.default}`,
           width: '640px', maxWidth: '100%', maxHeight: '85vh',
           display: 'flex', flexDirection: 'column',
           boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
@@ -226,19 +227,19 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
       >
         {/* Header */}
         <div style={{
-          padding: '16px 20px', borderBottom: '1px solid #3e3e42',
+          padding: '16px 20px', borderBottom: `1px solid ${tokens.border.default}`,
           display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
         }}>
           <div>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: '#cccccc' }}>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: tokens.text.secondary }}>
               Choose Match Conditions
             </div>
-            <div style={{ fontSize: '11px', color: '#666', marginTop: '3px' }}>
+            <div style={{ fontSize: '11px', color: tokens.text.hint, marginTop: '3px' }}>
               Derived from the captured request. Edit values inline before confirming.
             </div>
           </div>
           <button onClick={onCancel} style={{
-            background: 'none', border: 'none', color: '#666', fontSize: '20px',
+            background: 'none', border: 'none', color: tokens.text.hint, fontSize: '20px',
             cursor: 'pointer', lineHeight: 1, padding: '0 0 0 12px',
           }}>&#x2715;</button>
         </div>
@@ -246,7 +247,7 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
         {/* Suggestion list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
           {suggestions.length === 0 ? (
-            <div style={{ color: '#666', fontSize: '12px', padding: '16px 0' }}>
+            <div style={{ color: tokens.text.hint, fontSize: '12px', padding: '16px 0' }}>
               No conditions could be derived from the request XML.
             </div>
           ) : (
@@ -254,12 +255,12 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
               <div key={group} style={{ marginBottom: '16px' }}>
                 {/* Group heading */}
                 <div style={{
-                  fontSize: '10px', fontWeight: 700, color: '#888',
+                  fontSize: '10px', fontWeight: 700, color: tokens.text.muted,
                   textTransform: 'uppercase', letterSpacing: '0.08em',
                   marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px',
                 }}>
                   {group}
-                  <div style={{ flex: 1, height: '1px', background: '#2a2a2a' }} />
+                  <div style={{ flex: 1, height: '1px', background: tokens.surface.stripe }} />
                 </div>
 
                 {items.map(({ sg, idx }) => {
@@ -272,8 +273,8 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
                         display: 'flex', alignItems: 'center', gap: '10px',
                         padding: '7px 10px', marginBottom: '4px',
                         borderRadius: '4px', cursor: 'pointer',
-                        background: isSelected ? 'rgba(14,99,156,0.15)' : '#1e1e1e',
-                        border: `1px solid ${isSelected ? '#0e639c' : '#2d2d2d'}`,
+                        background: isSelected ? 'rgba(14,99,156,0.15)' : tokens.surface.base,
+                        border: `1px solid ${isSelected ? tokens.status.accentDark : '#2d2d2d'}`,
                       }}
                       onClick={() => toggle(idx)}
                     >
@@ -286,7 +287,7 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
                       />
                       <div style={{
                         flex: 1, fontSize: '12px',
-                        color: isSelected ? '#cccccc' : '#888',
+                        color: isSelected ? tokens.text.secondary : tokens.text.muted,
                         fontWeight: isSelected ? 500 : 400,
                       }}>
                         {sg.label}
@@ -321,20 +322,20 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
 
         {/* Footer */}
         <div style={{
-          padding: '12px 20px', borderTop: '1px solid #3e3e42',
+          padding: '12px 20px', borderTop: `1px solid ${tokens.border.default}`,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <span style={{ fontSize: '11px', color: '#666' }}>
+          <span style={{ fontSize: '11px', color: tokens.text.hint }}>
             {selectedCount} condition{selectedCount !== 1 ? 's' : ''} selected
           </span>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={onCancel} style={{
-              padding: '7px 16px', background: 'transparent', border: '1px solid #555',
-              borderRadius: '4px', color: '#cccccc', fontSize: '13px', cursor: 'pointer',
+              padding: '7px 16px', background: 'transparent', border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md, color: tokens.text.secondary, fontSize: tokens.fontSize.base, cursor: 'pointer',
             }}>Cancel</button>
             <button onClick={handleConfirm} style={{
-              padding: '7px 16px', background: '#0e639c', border: 'none',
-              borderRadius: '4px', color: 'white', fontSize: '13px', cursor: 'pointer',
+              padding: '7px 16px', background: tokens.status.accentDark, border: 'none',
+              borderRadius: tokens.radius.md, color: tokens.text.white, fontSize: tokens.fontSize.base, cursor: 'pointer',
             }}>
               {selectedCount === 0
                 ? 'Continue with no conditions'

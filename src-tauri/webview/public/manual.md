@@ -5,7 +5,7 @@
 1. Choose mode: **Proxy**, **Mock**, or **Both**
 2. Set **port** (default: 8888)
 3. For Proxy mode: Set **Target URL**
-4. Click **Start Server**
+4. Click **Start Proxy**
 
 ## Modes
 
@@ -18,9 +18,9 @@
 ## HTTPS Setup
 
 1. Settings → Certificate Management
-2. Click "Generate New Certificate"
-3. Click "Trust Certificate" (admin required)
-4. Verify status shows "✓ Trusted"
+2. Click **Generate Certificate**
+3. Click **Install to System Trust Store** (admin required)
+4. Status shows "✓ Certificate is valid"
 
 ## Replace Rules
 
@@ -67,44 +67,23 @@ All conditions in a rule must match (AND logic). Enable **Regex** on any conditi
 - **Response Headers** – Add custom key-value response headers
 - **Response Body** – With syntax highlighting matching the content-type
 - **Delay (ms)** – Simulate network latency
+- **Passthrough** – Forward to target URL if no rule matches (Both mode)
 
-### Template Helpers
+### Example: Mock User API
 
-Use these inside the response body for dynamic values:
-
-| Helper | Output |
-|--------|--------|
-| `{{now}}` | ISO-8601 timestamp |
-| `{{now 'timestamp'}}` | Unix ms |
-| `{{now 'date'}}` / `{{now 'time'}}` | Locale date / time |
-| `{{uuid}}` | Random UUID v4 |
-| `{{randomInt 1 100}}` | Random integer 1–100 |
-| `{{randomElement a b c}}` | Random pick |
-| `{{requestHeader 'name'}}` | Incoming header value |
-| `{{requestBody}}` | Raw request body |
-
-**Example:**
-```json
-{
-  "id": "{{uuid}}",
-  "at": "{{now}}",
-  "score": {{randomInt 1 100}}
-}
-```
-
-**Example: Mock User API**
 ```
 Condition: URL contains /api/user, Method: GET
 Response Status: 200
 Content-Type: JSON
 Response Body:
 {
-  "id": "{{uuid}}",
+  "id": "123",
   "name": "Test User"
 }
 ```
 
-**Example: Mock SOAP Service**
+### Example: Mock SOAP Service
+
 ```
 Condition: XPath //GetCustomer
 Response Status: 200
@@ -119,20 +98,45 @@ Response Body:
 </soap:Envelope>
 ```
 
+## Breakpoints
+
+Pause and inspect live traffic before it is forwarded or returned. Found under the **Breakpoints** tab.
+
+### How It Works
+
+1. Create a breakpoint rule with a name and URL pattern
+2. Choose when to pause: **Request**, **Response**, or **Both**
+3. When traffic matches, it pauses and appears in the queue
+4. Inspect and optionally edit headers/body
+5. Click **Edit & Continue** to forward with modifications, **Continue** to pass through unchanged, or **Drop** to discard
+
+### Breakpoint Timeout
+
+Paused traffic auto-resolves after a timeout to prevent the proxy blocking indefinitely.
+
+## File Watcher
+
+Watch directories for XML request/response file pairs and view them side by side. Found under the **File Watcher** tab.
+
+- Add a watch by specifying a folder path
+- APIprox scans for paired request/response files automatically
+- Click a pair to view the XML content in a split editor
+- Useful for reviewing recorded SOAP traffic stored as files
+
 ## Traffic Viewer
 
-- View all intercepted requests/responses
-- Click row to see details
-- Search/filter traffic
-- Clear log with "Clear" button
+- View all intercepted requests and responses
+- Click a row to see headers and body in the detail panel below
+- Request/Response shown with syntax highlighting (XML, JSON)
+- Raw JSON view available via the **raw** tab
 
 ## Common Use Cases
 
 ### Debug API Calls
 1. Start in Proxy mode
 2. Set target to your API
-3. Configure app to use proxy (localhost:8888)
-4. View traffic in Traffic tab
+3. Configure app to use proxy (`localhost:8888`)
+4. View traffic in the Traffic tab
 
 ### Mock External APIs
 1. Start in Mock mode
@@ -141,41 +145,44 @@ Response Body:
 4. Develop offline
 
 ### Test Error Scenarios
-1. Create mock rule with error response
+1. Create mock rule with error status code
 2. Add delay to simulate timeout
 3. Test app error handling
 
-## Keyboard Shortcuts
-
-- `Ctrl+R` - Toggle recording
-- `Ctrl+K` - Clear traffic
-- `Ctrl+,` - Settings
-- `Escape` - Close modal
+### Intercept and Modify Live Traffic
+1. Start in Proxy mode
+2. Add a Breakpoint rule on the target URL
+3. Trigger a request in your app
+4. Edit the paused request/response and continue
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| No traffic appearing | Check proxy settings in your app |
-| Certificate errors | Regenerate and trust certificate |
+| No traffic appearing | Check proxy settings in your app point to `localhost:<port>` |
+| Certificate errors | Regenerate and reinstall certificate (Settings tab) |
 | Mock not matching | Check rule is enabled, condition patterns, and rule order |
 | Connection refused | Verify server is running and port is correct |
+| Breakpoint not triggering | Ensure proxy is running and breakpoint rule is enabled |
 
 ## Configuration Files
 
-- **Mock Rules**: `~/.apiprox/mock-rules.jsonc`
-- **Replace Rules**: `~/.apiprox/config.jsonc` → `replaceRules`
-- **Certificate**: `~/.apiprox/certs/apiprox-ca.crt`
-- **Settings**: `~/.apiprox/config.jsonc`
+All stored in `~/.apiprox/`:
+
+- **mock-rules.json** — Mock rule definitions
+- **replace-rules.json** — Replace rule definitions
+- **breakpoint-rules.json** — Breakpoint rule definitions
+- **file-watches.json** — File watcher configurations
+- **ca.crt** / **ca.key** — CA certificate and private key
 
 ## Tips
 
 ✓ Use specific XPath to avoid unintended changes  
 ✓ Test replace rules with sample traffic first  
-✓ Use template helpers for realistic dynamic mock responses  
-✓ Clear traffic logs regularly  
+✓ Clear breakpoints when done — they apply to all traffic  
 ✓ Export certificate before regenerating  
 ✓ Disable rules when not needed  
+✓ Use Both mode to mock only specific endpoints  
 
 ## Security Notes
 
@@ -183,8 +190,8 @@ Response Body:
 ⚠️ Only use on dev/test machines  
 ⚠️ APIprox sees all traffic (including secrets)  
 ⚠️ Use replace rules to mask sensitive data  
-⚠️ Remove certificate when done testing  
+⚠️ Remove certificate from trust store when done testing  
 
 ---
 
-For complete documentation, see **README.md**
+For full documentation, see **Full Documentation** tab above.

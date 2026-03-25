@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { bridge } from '../utils/bridge';
+import { tokens } from '../styles/tokens';
 
 interface ServerControlProps {
   onStatusChange?: (info: { running: boolean; port: number; mode: string }) => void;
@@ -67,8 +68,8 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
   return (
     <div style={{
       padding: '20px',
-      background: '#252526',
-      borderRadius: '6px',
+      background: tokens.surface.panel,
+      borderRadius: tokens.radius.lg,
       marginBottom: '20px'
     }}>
       <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: 500 }}>
@@ -78,7 +79,7 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* Target URL Input */}
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#cccccc' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
             Target URL
           </label>
           <input
@@ -90,21 +91,21 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             style={{
               width: '100%',
               padding: '8px 12px',
-              background: '#3c3c3c',
-              border: '1px solid #555',
-              borderRadius: '4px',
-              color: '#cccccc',
-              fontSize: '13px'
+              background: tokens.surface.input,
+              border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md,
+              color: tokens.text.secondary,
+              fontSize: tokens.fontSize.base
             }}
           />
-          <div style={{ fontSize: '11px', color: '#858585', marginTop: '4px' }}>
+          <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted, marginTop: '4px' }}>
             The upstream server to forward requests to (e.g., http://localhost:8080, https://api.example.com)
           </div>
         </div>
 
         {/* Port Input */}
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#cccccc' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
             Port
           </label>
           <input
@@ -115,18 +116,18 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             style={{
               width: '100px',
               padding: '8px 12px',
-              background: '#3c3c3c',
-              border: '1px solid #555',
-              borderRadius: '4px',
-              color: '#cccccc',
-              fontSize: '13px'
+              background: tokens.surface.input,
+              border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md,
+              color: tokens.text.secondary,
+              fontSize: tokens.fontSize.base
             }}
           />
         </div>
 
         {/* Mode Selection */}
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#cccccc' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
             Mode
           </label>
           <select
@@ -135,11 +136,11 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             disabled={proxyEnabled || loading}
             style={{
               padding: '8px 12px',
-              background: '#3c3c3c',
-              border: '1px solid #555',
-              borderRadius: '4px',
-              color: '#cccccc',
-              fontSize: '13px'
+              background: tokens.surface.input,
+              border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md,
+              color: tokens.text.secondary,
+              fontSize: tokens.fontSize.base
             }}
           >
             <option value="proxy">Proxy Only</option>
@@ -156,11 +157,11 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
               disabled={loading}
               style={{
                 padding: '10px 24px',
-                background: '#0e639c',
+                background: tokens.status.accentDark,
                 border: 'none',
-                borderRadius: '4px',
-                color: 'white',
-                fontSize: '13px',
+                borderRadius: tokens.radius.md,
+                color: tokens.text.white,
+                fontSize: tokens.fontSize.base,
                 fontWeight: 500,
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.6 : 1
@@ -176,9 +177,9 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
                 padding: '10px 24px',
                 background: '#c5000b',
                 border: 'none',
-                borderRadius: '4px',
-                color: 'white',
-                fontSize: '13px',
+                borderRadius: tokens.radius.md,
+                color: tokens.text.white,
+                fontSize: tokens.fontSize.base,
                 fontWeight: 500,
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.6 : 1
@@ -195,8 +196,8 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             padding: '12px',
             background: '#1a3d1a',
             border: '1px solid #2d6a2d',
-            borderRadius: '4px',
-            fontSize: '13px',
+            borderRadius: tokens.radius.md,
+            fontSize: tokens.fontSize.base,
             color: '#6fbf6f'
           }}>
             🟢 {mode === 'both' ? 'Proxy + Mock' : mode === 'mock' ? 'Mock server' : 'Proxy'} running on port {proxyPort}
@@ -209,8 +210,8 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             padding: '12px',
             background: '#3d1a1a',
             border: '1px solid #6a2d2d',
-            borderRadius: '4px',
-            fontSize: '13px',
+            borderRadius: tokens.radius.md,
+            fontSize: tokens.fontSize.base,
             color: '#bf6f6f'
           }}>
             ❌ {error}

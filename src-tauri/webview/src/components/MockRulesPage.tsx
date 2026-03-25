@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { MonacoRequestEditor } from '@apinox/request-editor';
 import { bridge } from '../utils/bridge';
+import { tokens } from '../styles/tokens';
 
 interface MockCondition {
   type: 'url' | 'xpath' | 'soapAction' | 'header' | 'method' | 'queryParam' | 'contains';
@@ -42,11 +43,11 @@ function contentTypeToLanguage(ct: string): string {
 }
 
 function statusColor(code: number): string {
-  if (code >= 200 && code < 300) return '#4caf50';
-  if (code >= 300 && code < 400) return '#ff9800';
-  if (code >= 400 && code < 500) return '#f44336';
-  if (code >= 500) return '#e53935';
-  return '#858585';
+  if (code >= 200 && code < 300) return tokens.httpStatus.success;
+  if (code >= 300 && code < 400) return tokens.httpStatus.redirect;
+  if (code >= 400 && code < 500) return tokens.httpStatus.clientError;
+  if (code >= 500) return tokens.httpStatus.serverError;
+  return tokens.httpStatus.unknown;
 }
 
 /** Tag input: shows pill chips and a text input; press Enter or comma to add. */
@@ -63,20 +64,22 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
 
   return (
     <div style={{
-      display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center',
-      padding: '6px 8px', background: '#3c3c3c', border: '1px solid #555',
-      borderRadius: '4px', minHeight: '36px',
+      display: 'flex', flexWrap: 'wrap', gap: tokens.space['2'], alignItems: 'center',
+      padding: `${tokens.space['2']} ${tokens.space['3']}`,
+      background: tokens.surface.input, border: `1px solid ${tokens.border.subtle}`,
+      borderRadius: tokens.radius.md, minHeight: '36px',
     }}>
       {tags.map((tag, i) => (
         <span key={i} style={{
           display: 'inline-flex', alignItems: 'center', gap: '4px',
-          background: '#1e4a7a', color: '#90caf9', padding: '2px 8px',
-          borderRadius: '12px', fontSize: '11px',
+          background: tokens.surface.tag, color: tokens.text.tag,
+          padding: `2px ${tokens.space['3']}`,
+          borderRadius: '12px', fontSize: tokens.fontSize.xs,
         }}>
           {tag}
           <button
             onClick={() => removeTag(i)}
-            style={{ background: 'none', border: 'none', color: '#90caf9', cursor: 'pointer', padding: '0', lineHeight: 1, fontSize: '14px' }}
+            style={{ background: 'none', border: 'none', color: tokens.text.tag, cursor: 'pointer', padding: '0', lineHeight: 1, fontSize: tokens.fontSize.md }}
           >×</button>
         </span>
       ))}
@@ -90,7 +93,8 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
         placeholder={tags.length === 0 ? 'Type a tag and press Enter…' : ''}
         style={{
           background: 'none', border: 'none', outline: 'none',
-          color: '#cccccc', fontSize: '12px', minWidth: '130px', flex: 1,
+          color: tokens.text.secondary, fontSize: tokens.fontSize.sm,
+          minWidth: '130px', flex: 1,
         }}
       />
     </div>
@@ -118,7 +122,7 @@ function RuleRow({
     <div style={{
       display: 'flex', alignItems: 'center', gap: '10px',
       padding: '7px 12px',
-      borderBottom: isLast ? 'none' : '1px solid #2a2a2a',
+      borderBottom: isLast ? 'none' : `1px solid ${tokens.surface.stripe}`,
     }}>
       {/* Enabled toggle */}
       <button
@@ -126,8 +130,8 @@ function RuleRow({
         title={rule.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
         style={{
           background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-          fontSize: '14px', lineHeight: 1,
-          color: rule.enabled ? '#4caf50' : '#555', flexShrink: 0,
+          fontSize: tokens.fontSize.md, lineHeight: 1,
+          color: rule.enabled ? tokens.httpStatus.success : tokens.text.faint, flexShrink: 0,
         }}
       >{rule.enabled ? '●' : '○'}</button>
 
@@ -136,13 +140,13 @@ function RuleRow({
         title={condTooltip}
         style={{
           flex: 1, minWidth: 0,
-          fontSize: '13px', color: rule.enabled ? '#cccccc' : '#666',
+          fontSize: tokens.fontSize.base, color: rule.enabled ? tokens.text.secondary : tokens.text.hint,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}
       >
         {rule.name}
         {condSummary && (
-          <span style={{ color: '#555', marginLeft: '10px' }}>
+          <span style={{ color: tokens.text.faint, marginLeft: '10px' }}>
             {condSummary}{rule.conditions.length > 1 ? ` +${rule.conditions.length - 1}` : ''}
           </span>
         )}
@@ -150,8 +154,8 @@ function RuleRow({
 
       {/* Status code */}
       <span style={{
-        fontSize: '11px', fontWeight: 600, color: statusColor(rule.statusCode),
-        background: '#1a1a1a', padding: '2px 8px', borderRadius: '10px',
+        fontSize: tokens.fontSize.xs, fontWeight: 600, color: statusColor(rule.statusCode),
+        background: tokens.surface.deep, padding: `2px ${tokens.space['3']}`, borderRadius: '10px',
         minWidth: '36px', textAlign: 'center', flexShrink: 0,
       }}>{rule.statusCode}</span>
 
@@ -160,8 +164,8 @@ function RuleRow({
         <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
           {(rule.tags ?? []).map((t, i) => (
             <span key={i} style={{
-              fontSize: '10px', background: '#1e3a5a', color: '#90caf9',
-              padding: '2px 8px', borderRadius: '10px',
+              fontSize: tokens.fontSize.xs, background: tokens.surface.tag, color: tokens.text.tag,
+              padding: `2px ${tokens.space['3']}`, borderRadius: '10px',
             }}>{t}</span>
           ))}
         </div>
@@ -169,22 +173,26 @@ function RuleRow({
 
       {/* Hit count */}
       {(rule.hitCount ?? 0) > 0 && (
-        <span style={{ fontSize: '11px', color: '#555', flexShrink: 0 }}>×{rule.hitCount}</span>
+        <span style={{ fontSize: tokens.fontSize.xs, color: tokens.text.faint, flexShrink: 0 }}>×{rule.hitCount}</span>
       )}
 
       {/* Actions */}
       <button
         onClick={onEdit}
         style={{
-          padding: '3px 10px', background: 'transparent', border: '1px solid #0e639c',
-          borderRadius: '3px', color: '#0e639c', fontSize: '11px', cursor: 'pointer', flexShrink: 0,
+          padding: `3px ${tokens.space['2']}`, background: 'transparent',
+          border: `1px solid ${tokens.status.accentDark}`,
+          borderRadius: tokens.radius.sm, color: tokens.status.accentDark,
+          fontSize: tokens.fontSize.xs, cursor: 'pointer', flexShrink: 0,
         }}
       >Edit</button>
       <button
         onClick={onDelete}
         style={{
-          padding: '3px 10px', background: 'transparent', border: '1px solid #444',
-          borderRadius: '3px', color: '#777', fontSize: '11px', cursor: 'pointer', flexShrink: 0,
+          padding: `3px ${tokens.space['2']}`, background: 'transparent',
+          border: `1px solid ${tokens.border.subtle}`,
+          borderRadius: tokens.radius.sm, color: tokens.text.muted,
+          fontSize: tokens.fontSize.xs, cursor: 'pointer', flexShrink: 0,
         }}
       >Delete</button>
     </div>
@@ -232,31 +240,36 @@ function ExportModal({ rules, onClose }: { rules: MockRule[]; onClose: () => voi
   }
 
   const iStyle: React.CSSProperties = {
-    width: '100%', padding: '8px 12px', background: '#3c3c3c', border: '1px solid #555',
-    borderRadius: '4px', color: '#cccccc', fontSize: '13px', boxSizing: 'border-box',
+    width: '100%', padding: `${tokens.space['3']} ${tokens.space['4']}`,
+    background: tokens.surface.input, border: `1px solid ${tokens.border.subtle}`,
+    borderRadius: tokens.radius.md, color: tokens.text.secondary,
+    fontSize: tokens.fontSize.base, boxSizing: 'border-box',
   };
 
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 2000, padding: tokens.space['6'],
     }}>
       <div style={{
-        background: '#252526', padding: '24px', borderRadius: '8px',
-        width: '520px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '16px',
+        background: tokens.surface.panel, padding: '24px',
+        borderRadius: tokens.radius.lg,
+        width: '520px', maxHeight: '85vh',
+        display: 'flex', flexDirection: 'column', gap: tokens.space['5'],
       }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 500 }}>Export Mock Collection</h3>
+        <h3 style={{ margin: 0, fontSize: tokens.fontSize.lg, fontWeight: 500 }}>Export Mock Collection</h3>
 
         <div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#999', marginBottom: '5px' }}>
-            Collection name <span style={{ color: '#f44336' }}>*</span>
+          <label style={{ display: 'block', fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginBottom: '5px' }}>
+            Collection name <span style={{ color: tokens.httpStatus.clientError }}>*</span>
           </label>
           <input value={name} onChange={(e) => setName(e.target.value)} style={iStyle}
             placeholder="e.g. Payments API Mocks" autoFocus />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#999', marginBottom: '5px' }}>
+          <label style={{ display: 'block', fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginBottom: '5px' }}>
             Description
           </label>
           <input value={description} onChange={(e) => setDescription(e.target.value)} style={iStyle}
@@ -265,24 +278,25 @@ function ExportModal({ rules, onClose }: { rules: MockRule[]; onClose: () => voi
 
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', color: '#999' }}>
+            <span style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted }}>
               Rules ({selectedIds.size} of {rules.length} selected)
             </span>
             <button onClick={toggleAll}
-              style={{ background: 'none', border: 'none', color: '#0e639c', fontSize: '12px', cursor: 'pointer', padding: 0 }}>
+              style={{ background: 'none', border: 'none', color: tokens.status.accentDark, fontSize: tokens.fontSize.sm, cursor: 'pointer', padding: 0 }}>
               {allSelected ? 'Deselect all' : 'Select all'}
             </button>
           </div>
-          <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #3c3c3c', borderRadius: '4px' }}>
+          <div style={{ overflowY: 'auto', flex: 1, border: `1px solid ${tokens.surface.input}`, borderRadius: tokens.radius.md }}>
             {rules.map((rule) => (
               <label key={rule.id} style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #2a2a2a',
+                padding: `${tokens.space['3']} ${tokens.space['4']}`, cursor: 'pointer',
+                borderBottom: `1px solid ${tokens.surface.stripe}`,
               }}>
                 <input type="checkbox" checked={selectedIds.has(rule.id)} onChange={() => toggle(rule.id)} />
-                <span style={{ fontSize: '13px', flex: 1 }}>{rule.name}</span>
-                <span style={{ fontSize: '11px', color: statusColor(rule.statusCode) }}>{rule.statusCode}</span>
-                <span style={{ fontSize: '11px', color: '#666' }}>
+                <span style={{ fontSize: tokens.fontSize.base, flex: 1 }}>{rule.name}</span>
+                <span style={{ fontSize: tokens.fontSize.xs, color: statusColor(rule.statusCode) }}>{rule.statusCode}</span>
+                <span style={{ fontSize: tokens.fontSize.xs, color: tokens.text.hint }}>
                   {rule.conditions.length} cond{rule.conditions.length !== 1 ? 's' : ''}
                 </span>
               </label>
@@ -290,17 +304,20 @@ function ExportModal({ rules, onClose }: { rules: MockRule[]; onClose: () => voi
           </div>
         </div>
 
-        {error && <div style={{ color: '#f44336', fontSize: '12px' }}>{error}</div>}
+        {error && <div style={{ color: tokens.httpStatus.clientError, fontSize: tokens.fontSize.sm }}>{error}</div>}
 
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{
-            padding: '8px 16px', background: 'transparent', border: '1px solid #555',
-            borderRadius: '4px', color: '#cccccc', fontSize: '13px', cursor: 'pointer',
+            padding: `${tokens.space['3']} ${tokens.space['5']}`, background: 'transparent',
+            border: `1px solid ${tokens.border.subtle}`,
+            borderRadius: tokens.radius.md, color: tokens.text.secondary,
+            fontSize: tokens.fontSize.base, cursor: 'pointer',
           }}>Cancel</button>
           <button onClick={doExport} disabled={busy} style={{
-            padding: '8px 16px', background: busy ? '#555' : '#0e639c',
-            border: 'none', borderRadius: '4px', color: 'white',
-            fontSize: '13px', cursor: busy ? 'default' : 'pointer',
+            padding: `${tokens.space['3']} ${tokens.space['5']}`,
+            background: busy ? tokens.border.subtle : tokens.status.accentDark,
+            border: 'none', borderRadius: tokens.radius.md, color: tokens.text.white,
+            fontSize: tokens.fontSize.base, cursor: busy ? 'default' : 'pointer',
           }}>{busy ? 'Exporting…' : 'Export'}</button>
         </div>
       </div>
@@ -346,12 +363,12 @@ function HeadersEditor({
   }
 
   const inputStyle: React.CSSProperties = {
-    padding: '5px 8px',
-    background: '#3c3c3c',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    color: '#cccccc',
-    fontSize: '12px',
+    padding: `${tokens.space['2']} ${tokens.space['3']}`,
+    background: tokens.surface.input,
+    border: `1px solid ${tokens.border.subtle}`,
+    borderRadius: tokens.radius.md,
+    color: tokens.text.secondary,
+    fontSize: tokens.fontSize.sm,
     width: '100%',
   };
 
@@ -373,13 +390,13 @@ function HeadersEditor({
           />
           <button
             onClick={() => remove(i)}
-            style={{ padding: '4px', background: '#5a2e2e', border: 'none', borderRadius: '4px', color: '#ff6b6b', fontSize: '12px', cursor: 'pointer' }}
+            style={{ padding: '4px', background: tokens.surface.danger, border: 'none', borderRadius: tokens.radius.md, color: tokens.text.danger, fontSize: tokens.fontSize.sm, cursor: 'pointer' }}
           >✕</button>
         </div>
       ))}
       <button
         onClick={add}
-        style={{ padding: '4px 10px', background: '#0e639c', border: 'none', borderRadius: '3px', color: 'white', fontSize: '11px', cursor: 'pointer' }}
+        style={{ padding: `4px ${tokens.space['2']}`, background: tokens.status.accentDark, border: 'none', borderRadius: tokens.radius.sm, color: tokens.text.white, fontSize: tokens.fontSize.xs, cursor: 'pointer' }}
       >
         + Add Header
       </button>
@@ -630,19 +647,19 @@ export function MockRulesPage() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '8px 12px',
-    background: '#3c3c3c',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    color: '#cccccc',
-    fontSize: '13px',
+    padding: `${tokens.space['3']} ${tokens.space['4']}`,
+    background: tokens.surface.input,
+    border: `1px solid ${tokens.border.subtle}`,
+    borderRadius: tokens.radius.md,
+    color: tokens.text.secondary,
+    fontSize: tokens.fontSize.base,
     boxSizing: 'border-box',
   };
 
   if (isLoading) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
-        <div style={{ color: '#858585' }}>Loading mock rules...</div>
+        <div style={{ color: tokens.text.muted }}>Loading mock rules...</div>
       </div>
     );
   }
@@ -652,25 +669,31 @@ export function MockRulesPage() {
 
       {/* ── Toolbar ── */}
       <div style={{
-        padding: '10px 16px', borderBottom: '1px solid #2d2d2d',
-        display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
-        background: '#1e1e1e',
+        padding: `${tokens.space['2']} ${tokens.space['5']}`,
+        borderBottom: `1px solid ${tokens.surface.stripe}`,
+        display: 'flex', alignItems: 'center', gap: tokens.space['3'], flexShrink: 0,
+        background: tokens.surface.base,
       }}>
         <input
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           placeholder="Search rules…"
           style={{
-            padding: '5px 10px', background: '#3c3c3c', border: '1px solid #555',
-            borderRadius: '4px', color: '#cccccc', fontSize: '12px', width: '200px',
+            padding: `5px 10px`, background: tokens.surface.input,
+            border: `1px solid ${tokens.border.subtle}`,
+            borderRadius: tokens.radius.md, color: tokens.text.secondary,
+            fontSize: tokens.fontSize.sm, width: '200px',
           }}
         />
         <select
           value={tagFilter}
           onChange={(e) => setTagFilter(e.target.value)}
           style={{
-            padding: '5px 8px', background: '#3c3c3c', border: '1px solid #555',
-            borderRadius: '4px', color: tagFilter ? '#cccccc' : '#858585', fontSize: '12px',
+            padding: `5px ${tokens.space['3']}`, background: tokens.surface.input,
+            border: `1px solid ${tokens.border.subtle}`,
+            borderRadius: tokens.radius.md,
+            color: tagFilter ? tokens.text.secondary : tokens.text.muted,
+            fontSize: tokens.fontSize.sm,
           }}
         >
           <option value="">All tags</option>
@@ -679,15 +702,17 @@ export function MockRulesPage() {
 
         <span style={{ flex: 1 }} />
 
-        <span style={{ fontSize: '11px', color: '#555' }}>
+        <span style={{ fontSize: tokens.fontSize.xs, color: tokens.text.faint }}>
           {filteredRules.length} / {rules.length}
         </span>
 
         <button
           onClick={handleImport}
           style={{
-            padding: '5px 12px', background: 'transparent', border: '1px solid #555',
-            borderRadius: '4px', color: '#cccccc', fontSize: '12px', cursor: 'pointer',
+            padding: `5px ${tokens.space['4']}`, background: 'transparent',
+            border: `1px solid ${tokens.border.subtle}`,
+            borderRadius: tokens.radius.md, color: tokens.text.secondary,
+            fontSize: tokens.fontSize.sm, cursor: 'pointer',
           }}
         >Import</button>
 
@@ -695,27 +720,30 @@ export function MockRulesPage() {
           onClick={() => setShowExportModal(true)}
           disabled={rules.length === 0}
           style={{
-            padding: '5px 12px', background: 'transparent', border: '1px solid #555',
-            borderRadius: '4px', color: rules.length === 0 ? '#444' : '#cccccc',
-            fontSize: '12px', cursor: rules.length === 0 ? 'default' : 'pointer',
+            padding: `5px ${tokens.space['4']}`, background: 'transparent',
+            border: `1px solid ${tokens.border.subtle}`,
+            borderRadius: tokens.radius.md,
+            color: rules.length === 0 ? tokens.border.subtle : tokens.text.secondary,
+            fontSize: tokens.fontSize.sm, cursor: rules.length === 0 ? 'default' : 'pointer',
           }}
         >Export</button>
 
         <button
           onClick={handleAddRule}
           style={{
-            padding: '5px 14px', background: '#0e639c', border: 'none',
-            borderRadius: '4px', color: 'white', fontSize: '12px', cursor: 'pointer',
+            padding: `5px 14px`, background: tokens.status.accentDark, border: 'none',
+            borderRadius: tokens.radius.md, color: tokens.text.white,
+            fontSize: tokens.fontSize.sm, cursor: 'pointer',
           }}
         >+ Add Rule</button>
       </div>
 
       {/* ── Template helpers hint ── */}
-      <div style={{ padding: '5px 16px', background: '#181818', borderBottom: '1px solid #2d2d2d', flexShrink: 0 }}>
-        <p style={{ margin: 0, fontSize: '11px', color: '#555' }}>
+      <div style={{ padding: `5px ${tokens.space['5']}`, background: tokens.surface.deep, borderBottom: `1px solid ${tokens.surface.stripe}`, flexShrink: 0 }}>
+        <p style={{ margin: 0, fontSize: tokens.fontSize.xs, color: tokens.text.faint }}>
           Body helpers:{' '}
           {['{{uuid}}', '{{now}}', '{{randomInt 1 100}}', '{{randomElement a b c}}', "{{requestHeader 'name'}}"].map((h) => (
-            <code key={h} style={{ background: '#1e1e1e', padding: '1px 5px', borderRadius: '3px', marginRight: '6px', fontSize: '10px' }}>{h}</code>
+            <code key={h} style={{ background: tokens.surface.base, padding: '1px 5px', borderRadius: tokens.radius.sm, marginRight: '6px', fontSize: '10px' }}>{h}</code>
           ))}
         </p>
       </div>
@@ -723,7 +751,7 @@ export function MockRulesPage() {
       {/* ── Rule groups ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
         {filteredRules.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px', color: '#555', fontSize: '13px' }}>
+          <div style={{ textAlign: 'center', padding: '48px', color: tokens.text.faint, fontSize: tokens.fontSize.base }}>
             {rules.length === 0
               ? 'No mock rules configured. Click "+ Add Rule" to create one.'
               : 'No rules match the current filter.'}
@@ -740,24 +768,24 @@ export function MockRulesPage() {
                   padding: '4px 0', marginBottom: '4px', textAlign: 'left',
                 }}
               >
-                <span style={{ color: '#555', fontSize: '10px' }}>
+                <span style={{ color: tokens.text.faint, fontSize: '10px' }}>
                   {openGroups.has(tag) ? '▼' : '▶'}
                 </span>
                 <span style={{
-                  fontSize: '11px', fontWeight: 700, color: '#888',
+                  fontSize: tokens.fontSize.xs, fontWeight: 700, color: tokens.text.muted,
                   textTransform: 'uppercase', letterSpacing: '0.08em',
                 }}>
                   {tag}
                 </span>
-                <span style={{ fontSize: '10px', color: '#555' }}>({groupRules.length})</span>
-                <div style={{ flex: 1, height: '1px', background: '#2a2a2a', marginLeft: '6px' }} />
+                <span style={{ fontSize: '10px', color: tokens.text.faint }}>({groupRules.length})</span>
+                <div style={{ flex: 1, height: '1px', background: tokens.surface.stripe, marginLeft: '6px' }} />
               </button>
 
               {/* Group rows */}
               {openGroups.has(tag) && (
                 <div style={{
-                  background: '#1e1e1e', borderRadius: '4px',
-                  border: '1px solid #2d2d2d', overflow: 'hidden',
+                  background: tokens.surface.base, borderRadius: tokens.radius.md,
+                  border: `1px solid ${tokens.surface.stripe}`, overflow: 'hidden',
                 }}>
                   {groupRules.map((rule, idx) => (
                     <RuleRow
@@ -786,19 +814,20 @@ export function MockRulesPage() {
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2100, padding: '20px',
+          zIndex: 2100, padding: tokens.space['6'],
         }}>
           <div style={{
-            background: '#252526', borderRadius: '8px', border: '1px solid #3e3e42',
+            background: tokens.surface.panel, borderRadius: tokens.radius.lg,
+            border: `1px solid ${tokens.border.default}`,
             padding: '24px', width: '460px', maxWidth: '100%',
             boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
           }}>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: '#cccccc', marginBottom: '10px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: tokens.text.secondary, marginBottom: '10px' }}>
               Duplicate Conditions Detected
             </div>
-            <div style={{ fontSize: '12px', color: '#999', marginBottom: '16px', lineHeight: 1.6 }}>
+            <div style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginBottom: tokens.space['5'], lineHeight: 1.6 }}>
               An existing rule named{' '}
-              <strong style={{ color: '#cccccc' }}>"{duplicateConflict.existing.name}"</strong>{' '}
+              <strong style={{ color: tokens.text.secondary }}>"{duplicateConflict.existing.name}"</strong>{' '}
               has the same match conditions. Overwriting it will replace its name, response,
               headers, and settings with the values you just configured.
             </div>
@@ -806,15 +835,18 @@ export function MockRulesPage() {
               <button
                 onClick={() => setDuplicateConflict(null)}
                 style={{
-                  padding: '7px 16px', background: 'transparent', border: '1px solid #555',
-                  borderRadius: '4px', color: '#cccccc', fontSize: '13px', cursor: 'pointer',
+                  padding: `7px ${tokens.space['5']}`, background: 'transparent',
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md, color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.base, cursor: 'pointer',
                 }}
               >Keep Both</button>
               <button
                 onClick={handleOverwriteDuplicate}
                 style={{
-                  padding: '7px 16px', background: '#c0392b', border: 'none',
-                  borderRadius: '4px', color: 'white', fontSize: '13px', cursor: 'pointer',
+                  padding: `7px ${tokens.space['5']}`, background: '#c0392b', // destructive red – intentional
+                  border: 'none', borderRadius: tokens.radius.md,
+                  color: tokens.text.white, fontSize: tokens.fontSize.base, cursor: 'pointer',
                 }}
               >Overwrite Existing</button>
             </div>
@@ -829,19 +861,20 @@ export function MockRulesPage() {
           top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0, 0, 0, 0.8)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: '20px',
+          zIndex: 1000, padding: tokens.space['6'],
         }}>
           <div style={{
-            background: '#252526', padding: '24px', borderRadius: '8px',
+            background: tokens.surface.panel, padding: '24px',
+            borderRadius: tokens.radius.lg,
             maxWidth: '760px', width: '100%', maxHeight: '90vh', overflow: 'auto',
           }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 500 }}>
+            <h3 style={{ margin: `0 0 ${tokens.space['6']} 0`, fontSize: tokens.fontSize.lg, fontWeight: 500 }}>
               {rules.find(r => r.id === editingRule.id) ? 'Edit' : 'Add'} Mock Rule
             </h3>
 
             {/* Name */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>
                 Rule Name
               </label>
               <input
@@ -854,9 +887,9 @@ export function MockRulesPage() {
 
             {/* Tags */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>
                 Tags
-                <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>
+                <span style={{ fontSize: tokens.fontSize.xs, color: tokens.text.hint, marginLeft: '8px' }}>
                   Groups related rules. Press Enter or comma to add each tag.
                 </span>
               </label>
@@ -869,15 +902,16 @@ export function MockRulesPage() {
             {/* Conditions */}
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ fontSize: '13px', color: '#cccccc' }}>
+                <label style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
                   Match Conditions{' '}
-                  <span style={{ fontSize: '11px', color: '#666' }}>(ALL must match)</span>
+                  <span style={{ fontSize: tokens.fontSize.xs, color: tokens.text.hint }}>(ALL must match)</span>
                 </label>
                 <button
                   onClick={addCondition}
                   style={{
-                    padding: '4px 10px', background: '#0e639c', border: 'none',
-                    borderRadius: '3px', color: 'white', fontSize: '11px', cursor: 'pointer',
+                    padding: `4px ${tokens.space['2']}`, background: tokens.status.accentDark, border: 'none',
+                    borderRadius: tokens.radius.sm, color: tokens.text.white,
+                    fontSize: tokens.fontSize.xs, cursor: 'pointer',
                   }}
                 >+ Add Condition</button>
               </div>
@@ -900,7 +934,7 @@ export function MockRulesPage() {
                         const keepName = namePreservingTypes.has(newType) && namePreservingTypes.has(condition.type);
                         updateCondition(idx, { type: newType, headerName: keepName ? condition.headerName : undefined });
                       }}
-                      style={{ padding: '6px', background: '#3c3c3c', border: '1px solid #555', borderRadius: '4px', color: '#cccccc', fontSize: '12px' }}
+                      style={{ padding: '6px', background: tokens.surface.input, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, color: tokens.text.secondary, fontSize: tokens.fontSize.sm }}
                     >
                       <option value="url">URL Path</option>
                       <option value="method">HTTP Method</option>
@@ -917,7 +951,7 @@ export function MockRulesPage() {
                         value={condition.headerName || ''}
                         onChange={(e) => updateCondition(idx, { headerName: e.target.value })}
                         placeholder={condition.type === 'header' ? 'Header name' : 'Param name'}
-                        style={{ padding: '6px 10px', background: '#3c3c3c', border: '1px solid #555', borderRadius: '4px', color: '#cccccc', fontSize: '12px' }}
+                        style={{ padding: `6px ${tokens.space['2']}`, background: tokens.surface.input, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, color: tokens.text.secondary, fontSize: tokens.fontSize.sm }}
                       />
                     )}
 
@@ -931,7 +965,7 @@ export function MockRulesPage() {
                             : condition.type === 'header' || condition.type === 'queryParam' ? 'Expected value'
                               : '/api/*'
                       }
-                      style={{ padding: '6px 10px', background: '#3c3c3c', border: '1px solid #555', borderRadius: '4px', color: '#cccccc', fontSize: '12px' }}
+                      style={{ padding: `6px ${tokens.space['2']}`, background: tokens.surface.input, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, color: tokens.text.secondary, fontSize: tokens.fontSize.sm }}
                     />
 
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer' }}>
@@ -946,7 +980,7 @@ export function MockRulesPage() {
 
                     <button
                       onClick={() => removeCondition(idx)}
-                      style={{ padding: '6px', background: '#5a2e2e', border: 'none', borderRadius: '4px', color: '#ff6b6b', fontSize: '12px', cursor: 'pointer' }}
+                      style={{ padding: '6px', background: tokens.surface.danger, border: 'none', borderRadius: tokens.radius.md, color: tokens.text.danger, fontSize: tokens.fontSize.sm, cursor: 'pointer' }}
                     >✕</button>
                   </div>
                 </div>
@@ -956,7 +990,7 @@ export function MockRulesPage() {
             {/* Response Config row */}
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px', gap: '12px', marginBottom: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>Status Code</label>
+                <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>Status Code</label>
                 <input
                   type="number"
                   value={editingRule.statusCode}
@@ -966,7 +1000,7 @@ export function MockRulesPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>Content-Type</label>
+                <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>Content-Type</label>
                 <select
                   value={getContentTypeSelectValue(editingRule.contentType)}
                   onChange={(e) => handleContentTypeSelect(e.target.value)}
@@ -991,7 +1025,7 @@ export function MockRulesPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>Delay (ms)</label>
+                <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>Delay (ms)</label>
                 <input
                   type="number"
                   value={editingRule.delayMs || 0}
@@ -1003,7 +1037,7 @@ export function MockRulesPage() {
 
             {/* Response Headers */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: '#cccccc' }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '8px', color: tokens.text.secondary }}>
                 Response Headers
               </label>
               <HeadersEditor
@@ -1014,13 +1048,13 @@ export function MockRulesPage() {
 
             {/* Response Body */}
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>
                 Response Body
               </label>
               <div style={{
                 height: '280px',
-                border: '1px solid #555',
-                borderRadius: '4px',
+                border: `1px solid ${tokens.border.subtle}`,
+                borderRadius: tokens.radius.md,
                 overflow: 'hidden',
               }}>
                 <MonacoRequestEditor
@@ -1036,15 +1070,19 @@ export function MockRulesPage() {
               <button
                 onClick={() => setEditingRule(null)}
                 style={{
-                  padding: '8px 16px', background: 'transparent', border: '1px solid #555',
-                  borderRadius: '4px', color: '#cccccc', fontSize: '13px', cursor: 'pointer',
+                  padding: `${tokens.space['3']} ${tokens.space['5']}`, background: 'transparent',
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md, color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.base, cursor: 'pointer',
                 }}
               >Cancel</button>
               <button
                 onClick={handleSaveRule}
                 style={{
-                  padding: '8px 16px', background: '#0e639c', border: 'none',
-                  borderRadius: '4px', color: 'white', fontSize: '13px', cursor: 'pointer',
+                  padding: `${tokens.space['3']} ${tokens.space['5']}`,
+                  background: tokens.status.accentDark, border: 'none',
+                  borderRadius: tokens.radius.md, color: tokens.text.white,
+                  fontSize: tokens.fontSize.base, cursor: 'pointer',
                 }}
               >Save Rule</button>
             </div>

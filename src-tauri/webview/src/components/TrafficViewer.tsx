@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TrafficLog } from '../types';
+import { tokens } from '../styles/tokens';
 
 interface TrafficViewerProps {
   logs: TrafficLog[];
@@ -32,7 +33,7 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      background: '#1e1e1e'
+      background: tokens.surface.base
     }}>
       <div style={{
         padding: '20px',
@@ -53,7 +54,7 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
             alignItems: 'center',
             justifyContent: 'center',
             height: '100%',
-            color: '#858585',
+            color: tokens.text.muted,
             fontSize: '13px'
           }}>
             No traffic captured yet. Start the proxy server to begin.
@@ -67,15 +68,15 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
             <thead style={{
               position: 'sticky',
               top: 0,
-              background: '#252526',
-              borderBottom: '1px solid #3e3e42'
+              background: tokens.surface.panel,
+              borderBottom: `1px solid ${tokens.border.default}`
             }}>
               <tr>
-                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: '#cccccc' }}>Time</th>
-                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: '#cccccc' }}>Method</th>
-                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: '#cccccc' }}>URL</th>
-                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: '#cccccc' }}>Status</th>
-                <th style={{ padding: '8px', textAlign: 'right', fontWeight: 500, color: '#cccccc' }}>Duration</th>
+                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: tokens.text.secondary }}>Time</th>
+                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: tokens.text.secondary }}>Method</th>
+                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: tokens.text.secondary }}>URL</th>
+                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 500, color: tokens.text.secondary }}>Status</th>
+                <th style={{ padding: '8px', textAlign: 'right', fontWeight: 500, color: tokens.text.secondary }}>Duration</th>
               </tr>
             </thead>
             <tbody>
@@ -85,12 +86,12 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
                   onClick={() => handleSelect(log)}
                   style={{
                     cursor: 'pointer',
-                    background: selectedId === log.id ? '#37373d' : 'transparent',
-                    borderBottom: '1px solid #2d2d30'
+                    background: selectedId === log.id ? tokens.surface.active : 'transparent',
+                    borderBottom: `1px solid ${tokens.surface.elevated}`
                   }}
                   onMouseEnter={(e) => {
                     if (selectedId !== log.id) {
-                      e.currentTarget.style.background = '#2a2d2e';
+                      e.currentTarget.style.background = tokens.surface.stripe;
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -99,15 +100,15 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
                     }
                   }}
                 >
-                  <td style={{ padding: '8px', color: '#cccccc' }}>{formatTime(log.timestamp)}</td>
-                  <td style={{ padding: '8px', color: '#4ec9b0', fontWeight: 500 }}>{log.method}</td>
-                  <td style={{ padding: '8px', color: '#d4d4d4', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '8px', color: tokens.text.secondary }}>{formatTime(log.timestamp)}</td>
+                  <td style={{ padding: '8px', color: tokens.syntax.request, fontWeight: 500 }}>{log.method}</td>
+                  <td style={{ padding: '8px', color: tokens.text.primary, maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {log.url}
                   </td>
                   <td style={{ padding: '8px', color: getStatusColor(log.status), fontWeight: 500 }}>
                     {log.status || '-'}
                   </td>
-                  <td style={{ padding: '8px', textAlign: 'right', color: '#858585' }}>
+                  <td style={{ padding: '8px', textAlign: 'right', color: tokens.text.muted }}>
                     {log.duration ? `${log.duration}ms` : '-'}
                   </td>
                 </tr>

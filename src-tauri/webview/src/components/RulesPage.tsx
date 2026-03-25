@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { bridge } from '../utils/bridge';
 import { ReplaceRule } from '../types';
+import { tokens } from '../styles/tokens';
 
 export function RulesPage() {
   const [rules, setRules] = useState<ReplaceRule[]>([]);
@@ -99,18 +100,18 @@ export function RulesPage() {
   const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '6px 8px',
-    background: '#3c3c3c',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    color: '#cccccc',
-    fontSize: '13px',
+    background: tokens.surface.input,
+    border: `1px solid ${tokens.border.subtle}`,
+    borderRadius: tokens.radius.md,
+    color: tokens.text.secondary,
+    fontSize: tokens.fontSize.base,
     boxSizing: 'border-box',
   };
 
   return (
     <div style={{ padding: '20px' }}>
       {error && (
-        <div style={{ padding: '8px 12px', background: '#5a1d1d', borderRadius: '4px', color: '#f48771', marginBottom: '12px', fontSize: '13px' }}>
+        <div style={{ padding: '8px 12px', background: tokens.surface.danger, borderRadius: tokens.radius.md, color: tokens.syntax.error, marginBottom: '12px', fontSize: tokens.fontSize.base }}>
           {error}
         </div>
       )}
@@ -127,11 +128,11 @@ export function RulesPage() {
           onClick={openAddModal}
           style={{
             padding: '8px 16px',
-            background: '#0e639c',
+            background: tokens.status.accentDark,
             border: 'none',
-            borderRadius: '4px',
-            color: 'white',
-            fontSize: '13px',
+            borderRadius: tokens.radius.md,
+            color: tokens.text.white,
+            fontSize: tokens.fontSize.base,
             cursor: 'pointer'
           }}
         >
@@ -143,9 +144,9 @@ export function RulesPage() {
         <div style={{
           padding: '40px',
           textAlign: 'center',
-          background: '#252526',
-          borderRadius: '6px',
-          color: '#858585'
+          background: tokens.surface.panel,
+          borderRadius: tokens.radius.lg,
+          color: tokens.text.muted
         }}>
           <p style={{ margin: 0 }}>No replace rules configured</p>
           <p style={{ margin: '8px 0 0', fontSize: '12px' }}>
@@ -159,9 +160,9 @@ export function RulesPage() {
               key={rule.id}
               style={{
                 padding: '16px',
-                background: '#252526',
-                borderRadius: '6px',
-                border: `1px solid ${rule.enabled ? '#3e3e42' : '#555'}`
+                background: tokens.surface.panel,
+                borderRadius: tokens.radius.lg,
+                border: `1px solid ${rule.enabled ? tokens.border.default : tokens.border.subtle}`
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
@@ -174,7 +175,7 @@ export function RulesPage() {
                   />
                   <div>
                     <div style={{ fontWeight: 500, fontSize: '14px' }}>{rule.name}</div>
-                    <div style={{ fontSize: '12px', color: '#858585', marginTop: '4px' }}>
+                    <div style={{ fontSize: '12px', color: tokens.text.muted, marginTop: '4px' }}>
                       Target: {rule.target}
                       {rule.isRegex && ' • Regex'}
                       {rule.xpath && ` • XPath: ${rule.xpath}`}
@@ -187,10 +188,10 @@ export function RulesPage() {
                     style={{
                       padding: '4px 12px',
                       background: 'transparent',
-                      border: '1px solid #555',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      fontSize: '12px',
+                      border: `1px solid ${tokens.border.subtle}`,
+                      borderRadius: tokens.radius.md,
+                      color: tokens.text.secondary,
+                      fontSize: tokens.fontSize.sm,
                       cursor: 'pointer'
                     }}
                   >
@@ -201,10 +202,10 @@ export function RulesPage() {
                     style={{
                       padding: '4px 12px',
                       background: 'transparent',
-                      border: '1px solid #555',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      fontSize: '12px',
+                      border: `1px solid ${tokens.border.subtle}`,
+                      borderRadius: tokens.radius.md,
+                      color: tokens.text.secondary,
+                      fontSize: tokens.fontSize.sm,
                       cursor: 'pointer'
                     }}
                   >
@@ -214,14 +215,14 @@ export function RulesPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
                 <div>
-                  <div style={{ color: '#858585', marginBottom: '4px' }}>Match:</div>
-                  <code style={{ background: '#1e1e1e', padding: '6px', borderRadius: '3px', display: 'block' }}>
+                  <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>Match:</div>
+                  <code style={{ background: tokens.surface.base, padding: '6px', borderRadius: tokens.radius.sm, display: 'block' }}>
                     {rule.matchText || '(empty)'}
                   </code>
                 </div>
                 <div>
-                  <div style={{ color: '#858585', marginBottom: '4px' }}>Replace with:</div>
-                  <code style={{ background: '#1e1e1e', padding: '6px', borderRadius: '3px', display: 'block' }}>
+                  <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>Replace with:</div>
+                  <code style={{ background: tokens.surface.base, padding: '6px', borderRadius: tokens.radius.sm, display: 'block' }}>
                     {rule.replaceWith || '(empty)'}
                   </code>
                 </div>
@@ -245,7 +246,7 @@ export function RulesPage() {
           zIndex: 1000
         }}>
           <div style={{
-            background: '#252526',
+            background: tokens.surface.panel,
             padding: '24px',
             borderRadius: '8px',
             maxWidth: '500px',
@@ -254,7 +255,7 @@ export function RulesPage() {
             <h3 style={{ margin: '0 0 16px 0' }}>{editingRule ? 'Edit Replace Rule' : 'Add Replace Rule'}</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
               <label style={{ fontSize: '13px' }}>
-                <div style={{ color: '#858585', marginBottom: '4px' }}>Name *</div>
+                <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>Name *</div>
                 <input
                   autoFocus
                   value={form.name}
@@ -264,7 +265,7 @@ export function RulesPage() {
                 />
               </label>
               <label style={{ fontSize: '13px' }}>
-                <div style={{ color: '#858585', marginBottom: '4px' }}>Match Text</div>
+                <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>Match Text</div>
                 <input
                   value={form.matchText}
                   onChange={e => setForm(f => ({ ...f, matchText: e.target.value }))}
@@ -273,7 +274,7 @@ export function RulesPage() {
                 />
               </label>
               <label style={{ fontSize: '13px' }}>
-                <div style={{ color: '#858585', marginBottom: '4px' }}>Replace With</div>
+                <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>Replace With</div>
                 <input
                   value={form.replaceWith}
                   onChange={e => setForm(f => ({ ...f, replaceWith: e.target.value }))}
@@ -283,7 +284,7 @@ export function RulesPage() {
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
                 <label>
-                  <div style={{ color: '#858585', marginBottom: '4px' }}>Target</div>
+                  <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>Target</div>
                   <select
                     value={form.target}
                     onChange={e => setForm(f => ({ ...f, target: e.target.value as ReplaceRule['target'] }))}
@@ -305,7 +306,7 @@ export function RulesPage() {
                 </label>
               </div>
               <label style={{ fontSize: '13px' }}>
-                <div style={{ color: '#858585', marginBottom: '4px' }}>XPath (optional)</div>
+                <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>XPath (optional)</div>
                 <input
                   value={form.xpath}
                   onChange={e => setForm(f => ({ ...f, xpath: e.target.value }))}
@@ -320,10 +321,10 @@ export function RulesPage() {
                 style={{
                   padding: '8px 16px',
                   background: 'transparent',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '13px',
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.base,
                   cursor: 'pointer'
                 }}
               >
@@ -333,11 +334,11 @@ export function RulesPage() {
                 onClick={handleSaveRule}
                 style={{
                   padding: '8px 16px',
-                  background: '#0e639c',
+                  background: tokens.status.accentDark,
                   border: 'none',
-                  borderRadius: '4px',
-                  color: 'white',
-                  fontSize: '13px',
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.white,
+                  fontSize: tokens.fontSize.base,
                   cursor: 'pointer'
                 }}
               >

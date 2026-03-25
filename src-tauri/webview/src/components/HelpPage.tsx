@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { tokens } from '../styles/tokens';
 
 const HelpContainer = styled.div`
   padding: 20px;
@@ -9,26 +11,26 @@ const HelpContainer = styled.div`
 `;
 
 const HelpContent = styled.div`
-  background: #252526;
-  border-radius: 6px;
+  background: ${tokens.surface.panel};
+  border-radius: ${tokens.radius.lg};
   padding: 30px;
-  color: #d4d4d4;
+  color: ${tokens.text.primary};
   
   h1, h2, h3 {
-    color: #ffffff;
+    color: ${tokens.text.white};
     margin-top: 24px;
     margin-bottom: 12px;
   }
   
   h1 {
     font-size: 28px;
-    border-bottom: 2px solid #007acc;
+    border-bottom: 2px solid ${tokens.status.accent};
     padding-bottom: 8px;
   }
   
   h2 {
     font-size: 22px;
-    border-bottom: 1px solid #3e3e42;
+    border-bottom: 1px solid ${tokens.border.default};
     padding-bottom: 6px;
   }
   
@@ -42,7 +44,7 @@ const HelpContent = styled.div`
   }
   
   code {
-    background: #1e1e1e;
+    background: ${tokens.surface.base};
     padding: 2px 6px;
     border-radius: 3px;
     font-family: 'Consolas', 'Monaco', monospace;
@@ -50,11 +52,11 @@ const HelpContent = styled.div`
   }
   
   pre {
-    background: #1e1e1e;
+    background: ${tokens.surface.base};
     padding: 12px;
     border-radius: 4px;
     overflow-x: auto;
-    border-left: 3px solid #007acc;
+    border-left: 3px solid ${tokens.status.accent};
     
     code {
       background: none;
@@ -78,19 +80,19 @@ const HelpContent = styled.div`
     margin-bottom: 16px;
     
     th, td {
-      border: 1px solid #3e3e42;
+      border: 1px solid ${tokens.border.default};
       padding: 8px 12px;
       text-align: left;
     }
     
     th {
-      background: #1e1e1e;
+      background: ${tokens.surface.base};
       font-weight: 600;
     }
   }
   
   a {
-    color: #007acc;
+    color: ${tokens.status.accent};
     text-decoration: none;
     
     &:hover {
@@ -99,7 +101,7 @@ const HelpContent = styled.div`
   }
   
   blockquote {
-    border-left: 4px solid #007acc;
+    border-left: 4px solid ${tokens.status.accent};
     padding-left: 16px;
     margin-left: 0;
     color: #a0a0a0;
@@ -115,8 +117,8 @@ const TabButtons = styled.div`
 
 const TabButton = styled.button<{ $active: boolean }>`
   padding: 8px 16px;
-  background: ${props => props.$active ? '#007acc' : '#3e3e42'};
-  color: #ffffff;
+  background: ${props => props.$active ? tokens.status.accent : tokens.border.default};
+  color: ${tokens.text.white};
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -195,7 +197,7 @@ export const HelpPage: React.FC = () => {
       </TabButtons>
       
       <HelpContent>
-        <ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {activeDoc === 'manual' ? manualContent : readmeContent}
         </ReactMarkdown>
       </HelpContent>

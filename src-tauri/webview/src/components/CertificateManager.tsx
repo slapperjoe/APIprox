@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { bridge } from '../utils/bridge';
+import { tokens } from '../styles/tokens';
 
 interface CertInfo {
   exists: boolean;
@@ -102,8 +103,8 @@ export function CertificateManager() {
       </h2>
 
       {/* Status ------------------------------------------------------------ */}
-      <div style={{ background: '#252526', borderRadius: '6px', padding: '20px', marginBottom: '16px' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: '#858585', letterSpacing: '0.05em' }}>
+      <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px', marginBottom: '16px' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
           CA Certificate Status
         </h3>
 
@@ -117,8 +118,8 @@ export function CertificateManager() {
                 ['Valid To', formatDate(certInfo.validTo)],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: '#858585', flexShrink: 0, marginRight: '16px' }}>{label}</span>
-                  <span style={{ color: label === 'Valid To' && expired ? '#bf6f6f' : '#cccccc', textAlign: 'right' }}>
+                  <span style={{ color: tokens.text.muted, flexShrink: 0, marginRight: '16px' }}>{label}</span>
+                  <span style={{ color: label === 'Valid To' && expired ? '#bf6f6f' : tokens.text.secondary, textAlign: 'right' }}>
                     {value ?? 'N/A'}
                     {label === 'Valid To' && expired && ' ⚠ EXPIRED'}
                   </span>
@@ -127,13 +128,13 @@ export function CertificateManager() {
 
               {certInfo.fingerprint && (
                 <div style={{ fontSize: '13px', marginTop: '4px' }}>
-                  <div style={{ color: '#858585', marginBottom: '4px' }}>SHA-256 Fingerprint</div>
+                  <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>SHA-256 Fingerprint</div>
                   <div style={{
                     fontFamily: 'monospace',
                     fontSize: '10px',
-                    color: '#cccccc',
+                    color: tokens.text.secondary,
                     wordBreak: 'break-all',
-                    background: '#1e1e1e',
+                    background: tokens.surface.base,
                     padding: '8px',
                     borderRadius: '4px',
                   }}>
@@ -173,8 +174,8 @@ export function CertificateManager() {
       </div>
 
       {/* Actions ----------------------------------------------------------- */}
-      <div style={{ background: '#252526', borderRadius: '6px', padding: '20px', marginBottom: '16px' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: '#858585', letterSpacing: '0.05em' }}>
+      <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px', marginBottom: '16px' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
           Actions
         </h3>
 
@@ -212,8 +213,8 @@ export function CertificateManager() {
 
       {/* Trust result ------------------------------------------------------- */}
       {trustResult && (
-        <div style={{ background: '#252526', borderRadius: '6px', padding: '20px', marginBottom: '16px' }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: '#858585', letterSpacing: '0.05em' }}>
+        <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px', marginBottom: '16px' }}>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
             Trust Installation Result
           </h3>
 
@@ -247,15 +248,15 @@ export function CertificateManager() {
           {/* Manual steps on failure */}
           {trustResult.manualSteps.length > 0 && (
             <div style={{ marginTop: '8px' }}>
-              <div style={{ fontSize: '12px', color: '#858585', marginBottom: '8px', fontWeight: 600 }}>
+              <div style={{ fontSize: '12px', color: tokens.text.muted, marginBottom: '8px', fontWeight: 600 }}>
                 Manual installation steps:
               </div>
               <div style={{
-                background: '#1e1e1e',
-                borderRadius: '4px',
+                background: tokens.surface.base,
+                borderRadius: tokens.radius.md,
                 padding: '12px',
                 fontSize: '12px',
-                color: '#cccccc',
+                color: tokens.text.secondary,
                 fontFamily: 'monospace',
                 lineHeight: '1.8',
                 whiteSpace: 'pre-wrap',
@@ -269,28 +270,28 @@ export function CertificateManager() {
 
       {/* Info box ---------------------------------------------------------- */}
       <div style={{
-        background: '#1e1e1e',
-        borderRadius: '6px',
+        background: tokens.surface.base,
+        borderRadius: tokens.radius.lg,
         padding: '16px',
         fontSize: '12px',
-        color: '#858585',
+        color: tokens.text.muted,
         lineHeight: '1.7',
       }}>
-        <strong style={{ color: '#cccccc' }}>How HTTPS inspection works:</strong>
+        <strong style={{ color: tokens.text.secondary }}>How HTTPS inspection works:</strong>
         <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
           <li>Generate the CA certificate (done once per installation)</li>
           <li>Install it to your system trust store so your browser trusts it</li>
           <li>Configure your HTTP client to use the proxy</li>
           <li>APIprox will sign per-domain certificates on the fly using this CA</li>
         </ol>
-        <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #3e3e42' }}>
+          <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: `1px solid ${tokens.border.default}` }}>
           <strong style={{ color: '#e8d44d' }}>Firefox note:</strong>{' '}
           Firefox maintains its own certificate store. You must import the CA manually
           via Preferences → Privacy & Security → Certificates → View Certificates → Authorities → Import.
         </div>
         <div style={{ marginTop: '8px' }}>
           Certificate files are stored in{' '}
-          <code style={{ background: '#252526', padding: '2px 6px', borderRadius: '3px', color: '#d4d4d4' }}>
+          <code style={{ background: tokens.surface.panel, padding: '2px 6px', borderRadius: tokens.radius.sm, color: tokens.text.primary }}>
             ~/.apiprox/
           </code>
         </div>

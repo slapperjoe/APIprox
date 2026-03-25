@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { bridge } from '../utils/bridge';
+import { tokens } from '../styles/tokens';
 import { MonacoRequestEditorWithToolbar, HeadersPanel } from '@apinox/request-editor';
 import type { MonacoRequestEditorHandle } from '@apinox/request-editor';
 
@@ -211,7 +212,7 @@ export function BreakpointsPage() {
   if (isLoading) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
-        <div style={{ color: '#858585' }}>Loading breakpoints...</div>
+        <div style={{ color: tokens.text.muted }}>Loading breakpoints...</div>
       </div>
     );
   }
@@ -224,8 +225,8 @@ export function BreakpointsPage() {
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 500 }}>
             Paused Traffic ({queue.length})
           </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#858585' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: tokens.space['4'], fontSize: tokens.fontSize.sm, color: tokens.text.muted }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: tokens.space['2'] }}>
               Auto-timeout:
               <input
                 type="number"
@@ -239,27 +240,27 @@ export function BreakpointsPage() {
                 }}
                 style={{
                   width: '56px',
-                  padding: '2px 6px',
-                  background: '#3c3c3c',
-                  border: '1px solid #555',
-                  borderRadius: '3px',
-                  color: '#cccccc',
-                  fontSize: '12px',
+                  padding: `2px ${tokens.space['2']}`,
+                  background: tokens.surface.input,
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.sm,
+                  color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.sm,
                   textAlign: 'center',
                 }}
               />
               s
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0', borderRadius: '3px', overflow: 'hidden', border: '1px solid #555' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0', borderRadius: tokens.radius.sm, overflow: 'hidden', border: `1px solid ${tokens.border.subtle}` }}>
               <button
                 onClick={() => { setAutoTimeoutAction('allow'); localStorage.setItem('apiprox-bp-timeout-action', 'allow'); }}
                 style={{
-                  padding: '2px 8px',
-                  fontSize: '12px',
+                  padding: `2px ${tokens.space['3']}`,
+                  fontSize: tokens.fontSize.sm,
                   border: 'none',
                   cursor: 'pointer',
-                  background: autoTimeoutAction === 'allow' ? '#22c55e' : '#3c3c3c',
-                  color: autoTimeoutAction === 'allow' ? '#fff' : '#858585',
+                  background: autoTimeoutAction === 'allow' ? tokens.status.success : tokens.surface.input,
+                  color: autoTimeoutAction === 'allow' ? tokens.text.white : tokens.text.muted,
                   fontWeight: autoTimeoutAction === 'allow' ? 600 : 400,
                 }}
               >
@@ -268,13 +269,13 @@ export function BreakpointsPage() {
               <button
                 onClick={() => { setAutoTimeoutAction('drop'); localStorage.setItem('apiprox-bp-timeout-action', 'drop'); }}
                 style={{
-                  padding: '2px 8px',
-                  fontSize: '12px',
+                  padding: `2px ${tokens.space['3']}`,
+                  fontSize: tokens.fontSize.sm,
                   border: 'none',
-                  borderLeft: '1px solid #555',
+                  borderLeft: `1px solid ${tokens.border.subtle}`,
                   cursor: 'pointer',
-                  background: autoTimeoutAction === 'drop' ? '#ef4444' : '#3c3c3c',
-                  color: autoTimeoutAction === 'drop' ? '#fff' : '#858585',
+                  background: autoTimeoutAction === 'drop' ? tokens.status.error : tokens.surface.input,
+                  color: autoTimeoutAction === 'drop' ? tokens.text.white : tokens.text.muted,
                   fontWeight: autoTimeoutAction === 'drop' ? 600 : 400,
                 }}
               >
@@ -285,7 +286,7 @@ export function BreakpointsPage() {
         </div>
 
         {queue.length === 0 ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: '#858585', fontSize: '13px' }}>
+          <div style={{ padding: '20px', textAlign: 'center', color: tokens.text.muted, fontSize: tokens.fontSize.base }}>
             No traffic paused. Enable breakpoint rules to start intercepting.
           </div>
         ) : (
@@ -295,9 +296,9 @@ export function BreakpointsPage() {
                 key={item.id}
                 style={{
                   padding: '16px',
-                  background: '#1e1e1e',
-                  borderRadius: '4px',
-                  border: '1px solid #3e3e42',
+                  background: tokens.surface.base,
+                  borderRadius: tokens.radius.md,
+                  border: `1px solid ${tokens.border.default}`,
                   position: 'relative',
                   overflow: 'hidden',
                 }}
@@ -308,7 +309,7 @@ export function BreakpointsPage() {
                   const elapsed = now - item.timestamp;
                   const fraction = Math.max(0, 1 - elapsed / totalMs);
                   const pct = fraction * 100;
-                  const color = fraction > 0.5 ? '#22c55e' : fraction > 0.25 ? '#f59e0b' : '#ef4444';
+                  const color = fraction > 0.5 ? tokens.status.success : fraction > 0.25 ? tokens.status.warning : tokens.status.error;
                   return (
                     <div style={{
                       position: 'absolute',
@@ -325,13 +326,13 @@ export function BreakpointsPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 500 }}>
-                      <span style={{ color: item.pauseType === 'request' ? '#4ec9b0' : '#dcdcaa' }}>
+                      <span style={{ color: item.pauseType === 'request' ? tokens.syntax.request : tokens.syntax.response }}>
                         {item.pauseType.toUpperCase()}
                       </span>
                       {' '}
-                      <span style={{ color: '#d4d4d4' }}>{item.method} {item.url}</span>
+                      <span style={{ color: tokens.text.primary }}>{item.method} {item.url}</span>
                     </div>
-                    <div style={{ fontSize: '12px', color: '#858585', marginTop: '4px' }}>
+                    <div style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginTop: '4px' }}>
                       Rule: {item.matchedRule} • {new Date(item.timestamp).toLocaleTimeString()}
                       {item.statusCode && ` • Status: ${item.statusCode}`}
                     </div>
@@ -347,11 +348,11 @@ export function BreakpointsPage() {
                       }}
                       style={{
                         padding: '4px 12px',
-                        background: '#0e639c',
+                        background: tokens.status.accentDark,
                         border: 'none',
-                        borderRadius: '4px',
-                        color: 'white',
-                        fontSize: '12px',
+                        borderRadius: tokens.radius.md,
+                        color: tokens.text.white,
+                        fontSize: tokens.fontSize.sm,
                         cursor: 'pointer'
                       }}
                     >
@@ -361,11 +362,11 @@ export function BreakpointsPage() {
                       onClick={() => handleContinue(item.id)}
                       style={{
                         padding: '4px 12px',
-                        background: '#106b21',
+                        background: tokens.surface.successDark,
                         border: 'none',
-                        borderRadius: '4px',
-                        color: 'white',
-                        fontSize: '12px',
+                        borderRadius: tokens.radius.md,
+                        color: tokens.text.white,
+                        fontSize: tokens.fontSize.sm,
                         cursor: 'pointer'
                       }}
                     >
@@ -375,11 +376,11 @@ export function BreakpointsPage() {
                       onClick={() => handleDrop(item.id)}
                       style={{
                         padding: '4px 12px',
-                        background: '#6b1010',
+                        background: tokens.surface.dangerDark,
                         border: 'none',
-                        borderRadius: '4px',
-                        color: 'white',
-                        fontSize: '12px',
+                        borderRadius: tokens.radius.md,
+                        color: tokens.text.white,
+                        fontSize: tokens.fontSize.sm,
                         cursor: 'pointer'
                       }}
                     >
@@ -408,11 +409,11 @@ export function BreakpointsPage() {
             onClick={handleAddRule}
             style={{
               padding: '8px 16px',
-              background: '#0e639c',
+              background: tokens.status.accentDark,
               border: 'none',
-              borderRadius: '4px',
-              color: 'white',
-              fontSize: '13px',
+              borderRadius: tokens.radius.md,
+              color: tokens.text.white,
+              fontSize: tokens.fontSize.base,
               cursor: 'pointer'
             }}
           >
@@ -424,9 +425,9 @@ export function BreakpointsPage() {
           <div style={{
             padding: '40px',
             textAlign: 'center',
-            background: '#252526',
-            borderRadius: '6px',
-            color: '#858585'
+            background: tokens.surface.panel,
+            borderRadius: tokens.radius.lg,
+            color: tokens.text.muted
           }}>
             <p style={{ margin: 0, fontSize: '14px' }}>No breakpoints configured</p>
             <p style={{ margin: '8px 0 0', fontSize: '12px' }}>
@@ -440,9 +441,9 @@ export function BreakpointsPage() {
                 key={rule.id}
                 style={{
                   padding: '16px',
-                  background: '#252526',
-                  borderRadius: '6px',
-                  border: `1px solid ${rule.enabled ? '#0e639c' : '#555'}`
+                  background: tokens.surface.panel,
+                  borderRadius: tokens.radius.lg,
+                  border: `1px solid ${rule.enabled ? tokens.status.accentDark : tokens.border.subtle}`
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
@@ -455,7 +456,7 @@ export function BreakpointsPage() {
                     />
                     <div>
                       <div style={{ fontWeight: 500, fontSize: '14px' }}>{rule.name}</div>
-                      <div style={{ fontSize: '12px', color: '#858585', marginTop: '4px' }}>
+                      <div style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginTop: '4px' }}>
                         Target: {rule.target} • {rule.conditions.length} condition{rule.conditions.length !== 1 ? 's' : ''}
                       </div>
                     </div>
@@ -466,10 +467,10 @@ export function BreakpointsPage() {
                       style={{
                         padding: '4px 12px',
                         background: 'transparent',
-                        border: '1px solid #0e639c',
-                        borderRadius: '4px',
-                        color: '#0e639c',
-                        fontSize: '12px',
+                        border: `1px solid ${tokens.status.accentDark}`,
+                        borderRadius: tokens.radius.md,
+                        color: tokens.status.accentDark,
+                        fontSize: tokens.fontSize.sm,
                         cursor: 'pointer'
                       }}
                     >
@@ -480,10 +481,10 @@ export function BreakpointsPage() {
                       style={{
                         padding: '4px 12px',
                         background: 'transparent',
-                        border: '1px solid #555',
-                        borderRadius: '4px',
-                        color: '#cccccc',
-                        fontSize: '12px',
+                        border: `1px solid ${tokens.border.subtle}`,
+                        borderRadius: tokens.radius.md,
+                        color: tokens.text.secondary,
+                        fontSize: tokens.fontSize.sm,
                         cursor: 'pointer'
                       }}
                     >
@@ -493,13 +494,13 @@ export function BreakpointsPage() {
                 </div>
 
                 <div style={{ fontSize: '12px' }}>
-                  <div style={{ color: '#858585', marginBottom: '4px' }}>Conditions:</div>
+                  <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>Conditions:</div>
                   {rule.conditions.map((cond, idx) => (
                     <div key={idx} style={{ marginLeft: '12px', marginBottom: '4px' }}>
-                      • {cond.type}: <code style={{ background: '#1e1e1e', padding: '2px 6px', borderRadius: '3px' }}>
+                      • {cond.type}: <code style={{ background: tokens.surface.base, padding: '2px 6px', borderRadius: tokens.radius.sm }}>
                         {cond.pattern}
                       </code>
-                      {cond.isRegex && <span style={{ color: '#858585', marginLeft: '6px' }}>(regex)</span>}
+                      {cond.isRegex && <span style={{ color: tokens.text.muted, marginLeft: '6px' }}>(regex)</span>}
                     </div>
                   ))}
                 </div>
@@ -522,24 +523,24 @@ export function BreakpointsPage() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '20px'
+          padding: tokens.space['6']
         }}>
           <div style={{
-            background: '#252526',
+            background: tokens.surface.panel,
             padding: '24px',
-            borderRadius: '8px',
+            borderRadius: tokens.radius.lg,
             maxWidth: '700px',
             width: '100%',
             maxHeight: '90vh',
             overflow: 'auto'
           }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '16px' }}>
+            <h3 style={{ margin: `0 0 ${tokens.space['6']} 0`, fontSize: tokens.fontSize.lg }}>
               {rules.find(r => r.id === editingRule.id) ? 'Edit' : 'Add'} Breakpoint
             </h3>
 
             {/* Name */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>
                 Name
               </label>
               <input
@@ -548,19 +549,19 @@ export function BreakpointsPage() {
                 onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })}
                 style={{
                   width: '100%',
-                  padding: '8px 12px',
-                  background: '#3c3c3c',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '13px'
+                  padding: `${tokens.space['3']} ${tokens.space['4']}`,
+                  background: tokens.surface.input,
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.base
                 }}
               />
             </div>
 
             {/* Target */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc' }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>
                 Pause on
               </label>
               <select
@@ -568,12 +569,12 @@ export function BreakpointsPage() {
                 onChange={(e) => setEditingRule({ ...editingRule, target: e.target.value as any })}
                 style={{
                   width: '100%',
-                  padding: '8px 12px',
-                  background: '#3c3c3c',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '13px'
+                  padding: `${tokens.space['3']} ${tokens.space['4']}`,
+                  background: tokens.surface.input,
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.base
                 }}
               >
                 <option value="request">Request (before forwarding)</option>
@@ -585,16 +586,16 @@ export function BreakpointsPage() {
             {/* Conditions */}
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ fontSize: '13px', color: '#cccccc' }}>Match Conditions (ALL must match)</label>
+                <label style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>Match Conditions (ALL must match)</label>
                 <button
                   onClick={addCondition}
                   style={{
-                    padding: '4px 10px',
-                    background: '#0e639c',
+                    padding: `4px ${tokens.space['2']}`,
+                    background: tokens.status.accentDark,
                     border: 'none',
-                    borderRadius: '3px',
-                    color: 'white',
-                    fontSize: '11px',
+                    borderRadius: tokens.radius.sm,
+                    color: tokens.text.white,
+                    fontSize: tokens.fontSize.xs,
                     cursor: 'pointer'
                   }}
                 >
@@ -615,11 +616,11 @@ export function BreakpointsPage() {
                     onChange={(e) => updateCondition(idx, { type: e.target.value as any })}
                     style={{
                       padding: '6px',
-                      background: '#3c3c3c',
-                      border: '1px solid #555',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      fontSize: '12px'
+                      background: tokens.surface.input,
+                      border: `1px solid ${tokens.border.subtle}`,
+                      borderRadius: tokens.radius.md,
+                      color: tokens.text.secondary,
+                      fontSize: tokens.fontSize.sm
                     }}
                   >
                     <option value="url">URL</option>
@@ -635,12 +636,12 @@ export function BreakpointsPage() {
                     onChange={(e) => updateCondition(idx, { pattern: e.target.value })}
                     placeholder={condition.type === 'url' ? '/api/*' : 'pattern'}
                     style={{
-                      padding: '6px 10px',
-                      background: '#3c3c3c',
-                      border: '1px solid #555',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      fontSize: '12px'
+                      padding: `6px ${tokens.space['2']}`,
+                      background: tokens.surface.input,
+                      border: `1px solid ${tokens.border.subtle}`,
+                      borderRadius: tokens.radius.md,
+                      color: tokens.text.secondary,
+                      fontSize: tokens.fontSize.sm
                     }}
                   />
 
@@ -658,11 +659,11 @@ export function BreakpointsPage() {
                     onClick={() => removeCondition(idx)}
                     style={{
                       padding: '6px',
-                      background: '#5a2e2e',
+                      background: tokens.surface.danger,
                       border: 'none',
-                      borderRadius: '4px',
-                      color: '#ff6b6b',
-                      fontSize: '12px',
+                      borderRadius: tokens.radius.md,
+                      color: tokens.text.danger,
+                      fontSize: tokens.fontSize.sm,
                       cursor: 'pointer'
                     }}
                   >
@@ -677,12 +678,12 @@ export function BreakpointsPage() {
               <button
                 onClick={() => setEditingRule(null)}
                 style={{
-                  padding: '8px 16px',
+                  padding: `${tokens.space['3']} ${tokens.space['5']}`,
                   background: 'transparent',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '13px',
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.base,
                   cursor: 'pointer'
                 }}
               >
@@ -691,12 +692,12 @@ export function BreakpointsPage() {
               <button
                 onClick={handleSaveRule}
                 style={{
-                  padding: '8px 16px',
-                  background: '#0e639c',
+                  padding: `${tokens.space['3']} ${tokens.space['5']}`,
+                  background: tokens.status.accentDark,
                   border: 'none',
-                  borderRadius: '4px',
-                  color: 'white',
-                  fontSize: '13px',
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.white,
+                  fontSize: tokens.fontSize.base,
                   cursor: 'pointer'
                 }}
               >
@@ -720,31 +721,31 @@ export function BreakpointsPage() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '20px'
+          padding: tokens.space['6']
         }}>
           <div style={{
-            background: '#252526',
+            background: tokens.surface.panel,
             padding: '24px',
-            borderRadius: '8px',
+            borderRadius: tokens.radius.lg,
             maxWidth: '900px',
             width: '100%',
             maxHeight: '90vh',
             overflow: 'auto'
           }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>
+            <h3 style={{ margin: `0 0 ${tokens.space['4']} 0`, fontSize: tokens.fontSize.lg }}>
               Edit {editingTraffic.pauseType === 'request' ? 'Request' : 'Response'}
             </h3>
 
-            <div style={{ fontSize: '13px', color: '#858585', marginBottom: '20px' }}>
+            <div style={{ fontSize: tokens.fontSize.base, color: tokens.text.muted, marginBottom: tokens.space['6'] }}>
               {editingTraffic.method} {editingTraffic.url}
             </div>
 
             {/* Headers */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc', fontWeight: 600 }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary, fontWeight: 600 }}>
                 {editingTraffic.pauseType === 'request' ? 'Request Headers' : 'Response Headers'}
               </label>
-              <div style={{ height: '160px', border: '1px solid #555', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ height: '160px', border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: 'hidden' }}>
                 <HeadersPanel
                   headers={editedHeaders}
                   onChange={setEditedHeaders}
@@ -754,10 +755,10 @@ export function BreakpointsPage() {
 
             {/* Body Editor */}
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#cccccc', fontWeight: 600 }}>
+              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary, fontWeight: 600 }}>
                 {editingTraffic.pauseType === 'request' ? 'Request Body' : 'Response Body'}
               </label>
-              <div style={{ height: '320px', border: '1px solid #555', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ height: '320px', border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: 'hidden' }}>
                 <MonacoRequestEditorWithToolbar
                   value={editedBody}
                   onChange={setEditedBody}
@@ -771,12 +772,12 @@ export function BreakpointsPage() {
               <button
                 onClick={() => handleDrop(editingTraffic.id)}
                 style={{
-                  padding: '8px 16px',
-                  background: '#6b1010',
+                  padding: `${tokens.space['3']} ${tokens.space['5']}`,
+                  background: tokens.surface.dangerDark,
                   border: 'none',
-                  borderRadius: '4px',
-                  color: 'white',
-                  fontSize: '13px',
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.white,
+                  fontSize: tokens.fontSize.base,
                   cursor: 'pointer'
                 }}
               >
@@ -785,12 +786,12 @@ export function BreakpointsPage() {
               <button
                 onClick={() => setEditingTraffic(null)}
                 style={{
-                  padding: '8px 16px',
+                  padding: `${tokens.space['3']} ${tokens.space['5']}`,
                   background: 'transparent',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  color: '#cccccc',
-                  fontSize: '13px',
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.secondary,
+                  fontSize: tokens.fontSize.base,
                   cursor: 'pointer'
                 }}
               >
@@ -804,12 +805,12 @@ export function BreakpointsPage() {
                   });
                 }}
                 style={{
-                  padding: '8px 16px',
-                  background: '#106b21',
+                  padding: `${tokens.space['3']} ${tokens.space['5']}`,
+                  background: tokens.surface.successDark,
                   border: 'none',
-                  borderRadius: '4px',
-                  color: 'white',
-                  fontSize: '13px',
+                  borderRadius: tokens.radius.md,
+                  color: tokens.text.white,
+                  fontSize: tokens.fontSize.base,
                   cursor: 'pointer'
                 }}
               >

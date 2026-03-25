@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CertificateManager } from './CertificateManager';
+import { tokens } from '../styles/tokens';
 
 export function SettingsPage() {
   const [httpsEnabled, setHttpsEnabled] = useState(true);
@@ -17,8 +18,8 @@ export function SettingsPage() {
 
       {/* HTTPS Settings */}
       <div style={{
-        background: '#252526',
-        borderRadius: '6px',
+        background: tokens.surface.panel,
+        borderRadius: tokens.radius.lg,
         padding: '20px',
         marginBottom: '20px'
       }}>
@@ -36,7 +37,7 @@ export function SettingsPage() {
             />
             <div>
               <div style={{ fontSize: '13px' }}>Enable HTTPS Interception</div>
-              <div style={{ fontSize: '12px', color: '#858585', marginTop: '4px' }}>
+              <div style={{ fontSize: '12px', color: tokens.text.muted, marginTop: '4px' }}>
                 Allows proxying and modifying HTTPS traffic
               </div>
             </div>
@@ -54,7 +55,7 @@ export function SettingsPage() {
               />
               <div>
                 <div style={{ fontSize: '13px' }}>Auto-trust generated certificates</div>
-                <div style={{ fontSize: '12px', color: '#858585', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: tokens.text.muted, marginTop: '4px' }}>
                   Automatically add APIprox CA certificate to system trust store
                 </div>
               </div>
@@ -64,12 +65,12 @@ export function SettingsPage() {
 
         <div style={{
           padding: '12px',
-          background: '#1e1e1e',
-          borderRadius: '4px',
+          background: tokens.surface.base,
+          borderRadius: tokens.radius.md,
           fontSize: '12px',
-          color: '#858585'
+          color: tokens.text.muted
         }}>
-          <strong style={{ color: '#cccccc' }}>Note:</strong> HTTPS interception requires installing
+          <strong style={{ color: tokens.text.secondary }}>Note:</strong> HTTPS interception requires installing
           a root certificate. This certificate will be automatically generated and can be exported
           for manual installation if needed.
         </div>
@@ -77,8 +78,8 @@ export function SettingsPage() {
 
       {/* Port Settings */}
       <div style={{
-        background: '#252526',
-        borderRadius: '6px',
+        background: tokens.surface.panel,
+        borderRadius: tokens.radius.lg,
         padding: '20px',
         marginBottom: '20px'
       }}>
@@ -94,14 +95,14 @@ export function SettingsPage() {
             style={{
               width: '100px',
               padding: '8px 12px',
-              background: '#3c3c3c',
-              border: '1px solid #555',
-              borderRadius: '4px',
-              color: '#cccccc',
-              fontSize: '13px'
+              background: tokens.surface.input,
+              border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md,
+              color: tokens.text.secondary,
+              fontSize: tokens.fontSize.base
             }}
           />
-          <span style={{ fontSize: '13px', color: '#858585' }}>
+          <span style={{ fontSize: tokens.fontSize.base, color: tokens.text.muted }}>
             Default proxy port for new sessions
           </span>
         </div>
@@ -109,15 +110,15 @@ export function SettingsPage() {
 
       {/* About */}
       <div style={{
-        background: '#252526',
-        borderRadius: '6px',
+        background: tokens.surface.panel,
+        borderRadius: tokens.radius.lg,
         padding: '20px'
       }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 500 }}>
           About APIprox
         </h3>
         
-        <div style={{ fontSize: '13px', color: '#cccccc', lineHeight: '1.6' }}>
+        <div style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary, lineHeight: '1.6' }}>
           <p style={{ margin: '0 0 12px 0' }}>
             <strong>Version:</strong> 0.1.0
           </p>
