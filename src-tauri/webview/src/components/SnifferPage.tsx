@@ -16,7 +16,9 @@ export function SnifferPage({ trafficLogs }: SnifferPageProps) {
   const [proxyStatus, setProxyStatus] = useState<SystemProxyStatus | null>(null);
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyError, setProxyError] = useState<string | null>(null);
+  const [certTrusted, setCertTrusted] = useState<boolean | null>(null);
 
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeSetupTab, setActiveSetupTab] = useState<SetupTab>('env');
 
   const [urlFilter, setUrlFilter] = useState('');
@@ -26,9 +28,19 @@ export function SnifferPage({ trafficLogs }: SnifferPageProps) {
 
   useEffect(() => {
     loadProxyStatus();
+    loadCertStatus();
     const interval = setInterval(loadProxyStatus, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  async function loadCertStatus() {
+    try {
+      const info = await bridge.getCertificateInfo() as any;
+      setCertTrusted(info?.isTrusted ?? false);
+    } catch {
+      setCertTrusted(false);
+    }
+  }
 
   async function loadProxyStatus() {
     try {
@@ -43,10 +55,9 @@ export function SnifferPage({ trafficLogs }: SnifferPageProps) {
     setProxyLoading(true);
     setProxyError(null);
     try {
-      // Default proxy port — 8888 is the APIprox default
-      const port = 8888;
-      await bridge.setSystemProxy(port);
+      await bridge.setSystemProxy(8888);
       await loadProxyStatus();
+      await loadCertStatus(); // refresh cert trust state — good moment to remind if needed
     } catch (err: any) {
       setProxyError(err?.message ?? String(err));
     } finally {
@@ -102,21 +113,41 @@ export function SnifferPage({ trafficLogs }: SnifferPageProps) {
           status={proxyStatus}
           loading={proxyLoading}
           error={proxyError}
+          certTrusted={certTrusted}
           onEnable={handleEnableProxy}
           onDisable={handleDisableProxy}
         />
       </div>
 
-      {/* ── App Setup Guide ──────────────────────────────────────────────── */}
+      {/* ── Advanced / manual setup (collapsed by default) ──────────────── */}
       <div style={{
-        padding: `${tokens.space['5']} ${tokens.space['6']}`,
-        background: tokens.surface.panel,
         borderBottom: `1px solid ${tokens.border.default}`,
+        background: tokens.surface.panel,
       }}>
-        <div style={{ marginBottom: tokens.space['4'], fontSize: tokens.fontSize.base, fontWeight: 500, color: tokens.text.secondary }}>
-          Configure your app to use the proxy
-        </div>
-        <SetupGuide activeTab={activeSetupTab} onTabChange={setActiveSetupTab} />
+        <button
+          onClick={() => setShowAdvanced(v => !v)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: tokens.space['3'],
+            padding: `${tokens.space['4']} ${tokens.space['6']}`,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: tokens.text.muted,
+            fontSize: tokens.fontSize.sm,
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ fontSize: '10px', transition: 'transform 0.15s', transform: showAdvanced ? 'rotate(90deg)' : 'none' }}>▶</span>
+          Advanced: manual proxy setup (for apps that don't use the system proxy)
+        </button>
+        {showAdvanced && (
+          <div style={{ padding: `0 ${tokens.space['6']} ${tokens.space['5']}` }}>
+            <SetupGuide activeTab={activeSetupTab} onTabChange={setActiveSetupTab} />
+          </div>
+        )}
       </div>
 
       {/* ── Live Traffic ─────────────────────────────────────────────────── */}
@@ -222,11 +253,12 @@ interface SystemProxyPanelProps {
   status: SystemProxyStatus | null;
   loading: boolean;
   error: string | null;
+  certTrusted: boolean | null;
   onEnable: () => void;
   onDisable: () => void;
 }
 
-function SystemProxyPanel({ status, loading, error, onEnable, onDisable }: SystemProxyPanelProps) {
+function SystemProxyPanel({ status, loading, error, certTrusted, onEnable, onDisable }: SystemProxyPanelProps) {
   const isWindows = status?.platform === 'windows';
   const isMacos = status?.platform === 'macos';
   const isEnabled = status?.enabled ?? false;
@@ -304,36 +336,71 @@ function SystemProxyPanel({ status, loading, error, onEnable, onDisable }: Syste
         </div>
       )}
 
-      {/* macOS cert trust reminder when proxy is being enabled */}
-      {isMacos && canAutomate && !isEnabled && (
-        <div style={{
-          display: 'flex',
-          gap: tokens.space['3'],
-          padding: tokens.space['4'],
-          background: tokens.surface.elevated,
-          border: `1px solid ${tokens.border.subtle}`,
-          borderRadius: tokens.radius.md,
-          fontSize: tokens.fontSize.sm,
-          color: tokens.text.muted,
-        }}>
-          <span style={{ fontSize: '16px', flexShrink: 0 }}>💡</span>
-          <div>
-            For <strong style={{ color: tokens.text.secondary }}>HTTPS traffic</strong>, also trust the APIprox CA certificate
-            so apps don't reject the intercepted connection.
-            Go to <strong style={{ color: tokens.text.secondary }}>Settings → Trust Certificate</strong> first.
+      {/* Cert trust — show reminder only when not yet trusted, confirmation when trusted */}
+      {isMacos && canAutomate && (
+        certTrusted === true ? (
+          <div style={{
+            display: 'flex',
+            gap: tokens.space['3'],
+            padding: tokens.space['4'],
+            background: '#1a2d3d',
+            border: `1px solid #2d5a8a`,
+            borderRadius: tokens.radius.md,
+            fontSize: tokens.fontSize.sm,
+            color: '#6f9fbf',
+          }}>
+            <span style={{ fontSize: '16px', flexShrink: 0 }}>✓</span>
+            <div>
+              <strong style={{ color: tokens.text.primary }}>HTTPS interception ready</strong>
+              {' '}— CA certificate is trusted by this Mac.
+            </div>
           </div>
-        </div>
+        ) : certTrusted === false ? (
+          <div style={{
+            display: 'flex',
+            gap: tokens.space['3'],
+            padding: tokens.space['4'],
+            background: tokens.surface.elevated,
+            border: `1px solid ${tokens.border.subtle}`,
+            borderRadius: tokens.radius.md,
+            fontSize: tokens.fontSize.sm,
+            color: tokens.text.muted,
+          }}>
+            <span style={{ fontSize: '16px', flexShrink: 0 }}>💡</span>
+            <div>
+              For <strong style={{ color: tokens.text.secondary }}>HTTPS traffic</strong>, also trust the APIprox CA certificate
+              so apps don't reject the intercepted connection.
+              Go to <strong style={{ color: tokens.text.secondary }}>Settings → Certificate Management → Install to System Trust Store</strong> first.
+            </div>
+          </div>
+        ) : null
       )}
 
       {/* Windows — simpler, no elevation needed */}
       {isWindows && canAutomate && (
-        <div style={{
-          fontSize: tokens.fontSize.xs,
-          color: tokens.text.muted,
-        }}>
-          Sets the system proxy via registry (HKCU Internet Settings). No administrator rights required.
-          Applies to Chrome, Edge, and .NET HttpClient (WinHTTP).
-        </div>
+        <>
+          <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted }}>
+            Sets the system proxy via registry (HKCU Internet Settings). No administrator rights required.
+            Applies to Chrome, Edge, and .NET HttpClient (WinHTTP).
+          </div>
+          {certTrusted === true ? (
+            <div style={{
+              display: 'flex', gap: tokens.space['3'], padding: tokens.space['3'],
+              background: '#1a2d3d', border: `1px solid #2d5a8a`,
+              borderRadius: tokens.radius.md, fontSize: tokens.fontSize.sm, color: '#6f9fbf',
+            }}>
+              ✓ CA certificate trusted — HTTPS interception ready
+            </div>
+          ) : certTrusted === false ? (
+            <div style={{
+              display: 'flex', gap: tokens.space['3'], padding: tokens.space['3'],
+              background: tokens.surface.elevated, border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md, fontSize: tokens.fontSize.sm, color: tokens.text.muted,
+            }}>
+              💡 For HTTPS traffic, go to <strong style={{ color: tokens.text.secondary }}>Settings → Certificate Management → Install to System Trust Store</strong>
+            </div>
+          ) : null}
+        </>
       )}
 
       {error && (

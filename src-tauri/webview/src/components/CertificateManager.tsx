@@ -11,6 +11,7 @@ interface CertInfo {
   validFrom?: string;
   validTo?: string;
   fingerprint?: string;
+  isTrusted: boolean;
 }
 
 interface TrustResult {
@@ -18,6 +19,7 @@ interface TrustResult {
   message: string;
   firefoxNote: string;
   manualSteps: string[];
+  certInfo: CertInfo;
 }
 
 export function CertificateManager() {
@@ -61,12 +63,15 @@ export function CertificateManager() {
     try {
       const result = await bridge.trustCertificate() as TrustResult;
       setTrustResult(result);
+      // cert_info in the result already has updated is_trusted — apply it directly
+      setCertInfo(result.certInfo);
     } catch (err: any) {
       setTrustResult({
         success: false,
         message: String(err),
         firefoxNote: '',
         manualSteps: [],
+        certInfo: certInfo!,
       });
     } finally {
       setLoading(false);
@@ -147,15 +152,17 @@ export function CertificateManager() {
             <div style={{
               marginTop: '16px',
               padding: '10px 12px',
-              background: expired ? '#3d1a1a' : '#1a3d1a',
-              border: `1px solid ${expired ? '#6a2d2d' : '#2d6a2d'}`,
+              background: expired ? '#3d1a1a' : certInfo.isTrusted ? '#1a2d3d' : '#1a3d1a',
+              border: `1px solid ${expired ? '#6a2d2d' : certInfo.isTrusted ? '#2d5a8a' : '#2d6a2d'}`,
               borderRadius: '4px',
               fontSize: '12px',
-              color: expired ? '#bf6f6f' : '#6fbf6f',
+              color: expired ? '#bf6f6f' : certInfo.isTrusted ? '#6f9fbf' : '#6fbf6f',
             }}>
               {expired
                 ? '⚠ Certificate has expired. Regenerate it.'
-                : '✓ Certificate is valid'}
+                : certInfo.isTrusted
+                  ? '✓ Certificate is valid and trusted by this OS'
+                  : '✓ Certificate is valid — not yet installed in OS trust store'}
             </div>
           </>
         ) : (
@@ -186,9 +193,32 @@ export function CertificateManager() {
 
           {certInfo?.exists && (
             <>
-              <button onClick={handleTrust} disabled={loading} style={btnStyle('#107c10', loading)}>
-                Install to System Trust Store
-              </button>
+              {certInfo.isTrusted ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 18px',
+                  background: '#1a2d3d',
+                  border: '1px solid #2d5a8a',
+                  borderRadius: '4px',
+                  fontSize: '13px',
+                  color: '#6f9fbf',
+                }}>
+                  ✓ Trusted in OS store — Chrome, Safari & Edge will use it
+                  <button
+                    onClick={handleTrust}
+                    disabled={loading}
+                    style={{ ...btnStyle('#555', loading), padding: '2px 10px', fontSize: '11px', marginLeft: '8px' }}
+                  >
+                    Re-install
+                  </button>
+                </div>
+              ) : (
+                <button onClick={handleTrust} disabled={loading} style={btnStyle('#107c10', loading)}>
+                  Install to System Trust Store
+                </button>
+              )}
               <button onClick={handleExport} disabled={loading} style={btnStyle('#5c2d91', loading)}>
                 Show Certificate Path
               </button>

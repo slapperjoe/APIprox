@@ -31,6 +31,8 @@ pub struct CertInfo {
     pub valid_to: Option<String>,
     /// Colon-separated uppercase hex SHA-256 of the DER-encoded cert.
     pub fingerprint: Option<String>,
+    /// Whether the CA cert is currently installed in the OS trust store.
+    pub is_trusted: bool,
 }
 
 /// Sidecar JSON stored alongside the PEM file so `info()` is fast and
@@ -60,6 +62,22 @@ impl std::fmt::Debug for CertManager {
     }
 }
 
+impl Default for CertInfo {
+    fn default() -> Self {
+        Self {
+            exists: false,
+            cert_path: String::new(),
+            key_path: String::new(),
+            subject: None,
+            issuer: None,
+            valid_from: None,
+            valid_to: None,
+            fingerprint: None,
+            is_trusted: false,
+        }
+    }
+}
+
 impl CertManager {
     pub fn new(config_dir: PathBuf) -> Self {
         Self {
@@ -82,6 +100,8 @@ impl CertManager {
 
     pub fn info(&self) -> CertInfo {
         let exists = self.cert_path().exists() && self.key_path().exists();
+        let is_trusted = if exists { self.detect_trusted() } else { false };
+
         let base = CertInfo {
             exists,
             cert_path: self.cert_path().to_string_lossy().into_owned(),
@@ -91,6 +111,7 @@ impl CertManager {
             valid_from: None,
             valid_to: None,
             fingerprint: None,
+            is_trusted,
         };
 
         if !exists {
@@ -112,6 +133,49 @@ impl CertManager {
         }
 
         base
+    }
+
+    /// Check whether the APIprox CA cert is currently installed in the OS trust store.
+    /// Fast (sub-millisecond on warm disk cache) — safe to call from `info()`.
+    fn detect_trusted(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            // Check login keychain — no elevation required for reads.
+            let home = match std::env::var("HOME") {
+                Ok(h) => h,
+                Err(_) => return false,
+            };
+            let keychain = format!("{}/Library/Keychains/login.keychain-db", home);
+            let output = std::process::Command::new("security")
+                .args(["find-certificate", "-a", "-c", "APIprox", &keychain])
+                .output();
+            matches!(output, Ok(o) if o.status.success() && !o.stdout.is_empty())
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            // Query the current-user Root store — no elevation required.
+            let output = std::process::Command::new("certutil")
+                .args(["-user", "-store", "Root", "APIprox"])
+                .output();
+            matches!(output, Ok(o) if o.status.success())
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // Best-effort: check common anchor directories.
+            let paths = [
+                "/usr/local/share/ca-certificates/apiprox-ca.crt",
+                "/etc/pki/ca-trust/source/anchors/apiprox-ca.crt",
+                "/etc/ca-certificates/trust-source/anchors/apiprox-ca.crt",
+            ];
+            paths.iter().any(|p| std::path::Path::new(p).exists())
+        }
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        {
+            false
+        }
     }
 
     /// Generate a self-signed root CA certificate and persist it.

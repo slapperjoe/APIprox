@@ -33,21 +33,26 @@ pub async fn trust_certificate(state: State<'_, AppState>) -> Result<TrustResult
     let path_str = cert_path.to_string_lossy().into_owned();
 
     #[cfg(target_os = "macos")]
-    return Ok(install_macos(&path_str));
+    let mut result = install_macos(&path_str);
 
     #[cfg(target_os = "windows")]
-    return Ok(install_windows(&path_str));
+    let mut result = install_windows(&path_str);
 
     #[cfg(target_os = "linux")]
-    return Ok(install_linux(&path_str));
+    let mut result = install_linux(&path_str);
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-    return Ok(TrustResult {
+    let mut result = TrustResult {
         success: false,
         message: "Certificate trust not supported on this platform".to_string(),
         firefox_note: firefox_note(),
         manual_steps: vec!["Manually add the certificate to your system trust store.".to_string()],
-    });
+        cert_info: state.cert_manager.info(),
+    };
+
+    // Re-read cert info (including updated is_trusted) after the trust attempt.
+    result.cert_info = state.cert_manager.info();
+    Ok(result)
 }
 
 #[derive(Serialize)]
@@ -61,6 +66,8 @@ pub struct TrustResult {
     pub firefox_note: String,
     /// Populated on failure (or always on Linux) with step-by-step instructions.
     pub manual_steps: Vec<String>,
+    /// Updated cert info after the trust action — lets the UI react without a separate call.
+    pub cert_info: CertInfo,
 }
 
 fn firefox_note() -> String {
@@ -86,6 +93,7 @@ fn install_macos(cert_path: &str) -> TrustResult {
                 message: "Could not determine HOME directory".to_string(),
                 firefox_note: firefox_note(),
                 manual_steps: macos_manual_steps(cert_path),
+                cert_info: CertInfo::default(),
             }
         }
     };
@@ -111,6 +119,7 @@ fn install_macos(cert_path: &str) -> TrustResult {
             ),
             firefox_note: firefox_note(),
             manual_steps: vec![],
+            cert_info: CertInfo::default(),
         },
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
@@ -121,6 +130,7 @@ fn install_macos(cert_path: &str) -> TrustResult {
                 message: format!("security command failed: {}", detail.trim()),
                 firefox_note: firefox_note(),
                 manual_steps: macos_manual_steps(cert_path),
+                cert_info: CertInfo::default(),
             }
         }
         Err(e) => TrustResult {
@@ -128,6 +138,7 @@ fn install_macos(cert_path: &str) -> TrustResult {
             message: format!("Could not run security command: {}", e),
             firefox_note: firefox_note(),
             manual_steps: macos_manual_steps(cert_path),
+            cert_info: CertInfo::default(),
         },
     }
 }
@@ -161,6 +172,7 @@ fn install_windows(cert_path: &str) -> TrustResult {
                 .to_string(),
             firefox_note: firefox_note(),
             manual_steps: vec![],
+            cert_info: CertInfo::default(),
         },
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
@@ -169,6 +181,7 @@ fn install_windows(cert_path: &str) -> TrustResult {
                 message: format!("certutil failed: {}", stderr.trim()),
                 firefox_note: firefox_note(),
                 manual_steps: windows_manual_steps(cert_path),
+                cert_info: CertInfo::default(),
             }
         }
         Err(e) => TrustResult {
@@ -176,6 +189,7 @@ fn install_windows(cert_path: &str) -> TrustResult {
             message: format!("Could not run certutil: {}", e),
             firefox_note: firefox_note(),
             manual_steps: windows_manual_steps(cert_path),
+            cert_info: CertInfo::default(),
         },
     }
 }
@@ -204,6 +218,7 @@ fn install_linux(cert_path: &str) -> TrustResult {
             .to_string(),
         firefox_note: firefox_note(),
         manual_steps: linux_manual_steps(cert_path),
+        cert_info: CertInfo::default(),
     }
 }
 
