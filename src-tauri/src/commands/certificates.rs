@@ -160,8 +160,11 @@ fn macos_manual_steps(cert_path: &str) -> Vec<String> {
 #[cfg(target_os = "windows")]
 fn install_windows(cert_path: &str) -> TrustResult {
     // -addstore -user adds to the current user's store — no admin elevation needed.
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let output = std::process::Command::new("certutil")
         .args(["-addstore", "-user", "Root", cert_path])
+        .creation_flags(CREATE_NO_WINDOW)
         .output();
 
     match output {

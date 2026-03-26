@@ -155,8 +155,11 @@ impl CertManager {
         #[cfg(target_os = "windows")]
         {
             // Query the current-user Root store — no elevation required.
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             let output = std::process::Command::new("certutil")
                 .args(["-user", "-store", "Root", "APIprox"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
             matches!(output, Ok(o) if o.status.success())
         }

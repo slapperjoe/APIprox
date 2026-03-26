@@ -238,11 +238,22 @@ fn run_with_elevation(shell_cmd: &str) -> Result<(), String> {
 
 // ── Windows implementation ──────────────────────────────────────────────────
 
+/// Build a `Command` with CREATE_NO_WINDOW so subprocesses don't flash a
+/// console window on screen. Required for all Windows subprocess calls.
+#[cfg(target_os = "windows")]
+fn win_cmd(program: &str) -> Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut cmd = Command::new(program);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
 #[cfg(target_os = "windows")]
 fn get_system_proxy_windows() -> Result<SystemProxyStatus, String> {
     // Read from the Windows registry (HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings)
     // using the `reg` command — no extra crate needed.
-    let output = Command::new("reg")
+    let output = win_cmd("reg")
         .args([
             "query",
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings",
@@ -254,7 +265,7 @@ fn get_system_proxy_windows() -> Result<SystemProxyStatus, String> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let enabled = stdout.contains("0x1");
 
-    let server_output = Command::new("reg")
+    let server_output = win_cmd("reg")
         .args([
             "query",
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings",
@@ -327,7 +338,7 @@ fn clear_proxy_windows() -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn run_reg_add(key: &str, value_name: &str, value_type: &str, data: &str) -> Result<(), String> {
-    let output = Command::new("reg")
+    let output = win_cmd("reg")
         .args(["add", key, "/v", value_name, "/t", value_type, "/d", data, "/f"])
         .output()
         .map_err(|e| format!("reg add failed: {}", e))?;
@@ -344,7 +355,7 @@ fn notify_proxy_change_windows() {
     // Run a tiny PowerShell snippet to call InternetSetOption with
     // INTERNET_OPTION_SETTINGS_CHANGED (39) and INTERNET_OPTION_REFRESH (37)
     // so WinInet / IE-based apps pick up the change immediately.
-    let _ = Command::new("powershell")
+    let _ = win_cmd("powershell")
         .args([
             "-NoProfile", "-NonInteractive", "-Command",
             r#"
