@@ -19,6 +19,8 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         target: 'es2020',
-        minify: true
+        minify: true,
+        // Monaco editor is ~4MB bundled — acceptable for a desktop app loaded from disk
+        chunkSizeWarningLimit: 5000,
     }
 })

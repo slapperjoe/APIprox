@@ -22,7 +22,7 @@ use crate::certificates::manager::CertManager;
 use crate::certificates::sni_resolver::SniResolver;
 use crate::mock::server::find_matching_rule;
 use crate::mock::state::SharedMockState;
-use crate::models::{BreakpointResolution, PausedTraffic, ProxyConfig, TrafficEvent};
+use crate::models::{PausedTraffic, ProxyConfig, TrafficEvent};
 use crate::replacer::service::SharedReplacerService;
 
 /// Run the forward proxy server. Loops forever; cancel by aborting the spawned task.

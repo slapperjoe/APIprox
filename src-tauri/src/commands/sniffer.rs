@@ -372,21 +372,4 @@ $type::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null
         .ok();
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
 
-fn parse_proxy_server(server: &str) -> (String, Option<u16>) {
-    // Handles "127.0.0.1:8888" or "http=127.0.0.1:8888;https=127.0.0.1:8888"
-    let clean = server
-        .split(';')
-        .next()
-        .unwrap_or(server)
-        .trim_start_matches("http=")
-        .trim_start_matches("https=");
-
-    if let Some((host, port_str)) = clean.rsplit_once(':') {
-        let port = port_str.parse::<u16>().ok();
-        (host.to_string(), port)
-    } else {
-        (clean.to_string(), None)
-    }
-}
