@@ -14,6 +14,28 @@ pub async fn generate_certificate(state: State<'_, AppState>) -> Result<CertInfo
     state.cert_manager.generate().map_err(|e| e.to_string())
 }
 
+/// Remove the CA certificate from the OS trust store (useful for testing the trust flow).
+#[tauri::command]
+pub async fn untrust_certificate(state: State<'_, AppState>) -> Result<TrustResult, String> {
+    #[cfg(target_os = "macos")]
+    let mut result = remove_macos();
+
+    #[cfg(target_os = "windows")]
+    let mut result = remove_windows();
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let mut result = TrustResult {
+        success: false,
+        message: "Certificate removal not supported on this platform".to_string(),
+        firefox_note: String::new(),
+        manual_steps: vec![],
+        cert_info: CertInfo::default(),
+    };
+
+    result.cert_info = state.cert_manager.info();
+    Ok(result)
+}
+
 /// Attempt to install the CA certificate into the OS trust store.
 ///
 /// Platform strategy (all chosen to avoid requiring sudo/admin elevation):
@@ -80,6 +102,53 @@ fn firefox_note() -> String {
 }
 
 // ── macOS ──────────────────────────────────────────────────────────────────
+
+// ── macOS ──────────────────────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+fn remove_macos() -> TrustResult {
+    // delete-certificate removes by common name from the login keychain.
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return TrustResult {
+            success: false,
+            message: "Could not determine HOME directory".to_string(),
+            firefox_note: String::new(),
+            manual_steps: vec![],
+            cert_info: CertInfo::default(),
+        },
+    };
+    let keychain = format!("{}/Library/Keychains/login.keychain-db", home);
+    let output = std::process::Command::new("security")
+        .args(["delete-certificate", "-c", "APIprox", "-t", &keychain])
+        .output();
+    match output {
+        Ok(out) if out.status.success() => TrustResult {
+            success: true,
+            message: "Certificate removed from login keychain.".to_string(),
+            firefox_note: String::new(),
+            manual_steps: vec![],
+            cert_info: CertInfo::default(),
+        },
+        Ok(out) => {
+            let detail = String::from_utf8_lossy(&out.stderr).into_owned();
+            TrustResult {
+                success: false,
+                message: format!("security delete-certificate failed: {}", detail.trim()),
+                firefox_note: String::new(),
+                manual_steps: vec![],
+                cert_info: CertInfo::default(),
+            }
+        }
+        Err(e) => TrustResult {
+            success: false,
+            message: format!("Could not run security command: {}", e),
+            firefox_note: String::new(),
+            manual_steps: vec![],
+            cert_info: CertInfo::default(),
+        },
+    }
+}
 
 #[cfg(target_os = "macos")]
 fn install_macos(cert_path: &str) -> TrustResult {
@@ -156,6 +225,45 @@ fn macos_manual_steps(cert_path: &str) -> Vec<String> {
 }
 
 // ── Windows ────────────────────────────────────────────────────────────────
+
+// ── Windows ────────────────────────────────────────────────────────────────
+
+#[cfg(target_os = "windows")]
+fn remove_windows() -> TrustResult {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    // -delstore matches by friendly name / subject CN
+    let output = std::process::Command::new("certutil")
+        .args(["-user", "-delstore", "Root", "APIprox"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+    match output {
+        Ok(out) if out.status.success() => TrustResult {
+            success: true,
+            message: "Certificate removed from user certificate store.".to_string(),
+            firefox_note: String::new(),
+            manual_steps: vec![],
+            cert_info: CertInfo::default(),
+        },
+        Ok(out) => {
+            let detail = String::from_utf8_lossy(&out.stderr).into_owned();
+            TrustResult {
+                success: false,
+                message: format!("certutil -delstore failed: {}", detail.trim()),
+                firefox_note: String::new(),
+                manual_steps: vec![],
+                cert_info: CertInfo::default(),
+            }
+        }
+        Err(e) => TrustResult {
+            success: false,
+            message: format!("Could not run certutil: {}", e),
+            firefox_note: String::new(),
+            manual_steps: vec![],
+            cert_info: CertInfo::default(),
+        },
+    }
+}
 
 #[cfg(target_os = "windows")]
 fn install_windows(cert_path: &str) -> TrustResult {

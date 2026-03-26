@@ -152,6 +152,7 @@ pub fn run() {
             commands::certificates::get_certificate_info,
             commands::certificates::generate_certificate,
             commands::certificates::trust_certificate,
+            commands::certificates::untrust_certificate,
             // Sniffer / system proxy
             commands::sniffer::get_system_proxy_status,
             commands::sniffer::set_system_proxy,

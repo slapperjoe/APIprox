@@ -78,6 +78,26 @@ export function CertificateManager() {
     }
   }
 
+  async function handleUntrust() {
+    setLoading(true);
+    setTrustResult(null);
+    try {
+      const result = await bridge.untrustCertificate() as TrustResult;
+      setTrustResult(result);
+      setCertInfo(result.certInfo);
+    } catch (err: any) {
+      setTrustResult({
+        success: false,
+        message: String(err),
+        firefoxNote: '',
+        manualSteps: [],
+        certInfo: certInfo!,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleExport() {
     const path = certInfo?.certPath ?? '';
     setGenMessage({ type: 'success', text: `Certificate file: ${path}` });
@@ -212,6 +232,13 @@ export function CertificateManager() {
                     style={{ ...btnStyle('#555', loading), padding: '2px 10px', fontSize: '11px', marginLeft: '8px' }}
                   >
                     Re-install
+                  </button>
+                  <button
+                    onClick={handleUntrust}
+                    disabled={loading}
+                    style={{ ...btnStyle('#7a2020', loading), padding: '2px 10px', fontSize: '11px' }}
+                  >
+                    Remove from Store
                   </button>
                 </div>
               ) : (

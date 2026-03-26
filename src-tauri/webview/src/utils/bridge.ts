@@ -65,6 +65,10 @@ export const bridge = {
     return invoke('trust_certificate');
   },
 
+  async untrustCertificate(): Promise<any> {
+    return invoke('untrust_certificate');
+  },
+
   async getExportCertificateUrl(): Promise<string> {
     const info: any = await invoke('get_certificate_info');
     return info.certPath ?? '';
