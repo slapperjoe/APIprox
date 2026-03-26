@@ -228,7 +228,11 @@ interface SystemProxyPanelProps {
 
 function SystemProxyPanel({ status, loading, error, onEnable, onDisable }: SystemProxyPanelProps) {
   const isWindows = status?.platform === 'windows';
+  const isMacos = status?.platform === 'macos';
   const isEnabled = status?.enabled ?? false;
+  const canAutomate = status?.automationSupported ?? false;
+  const needsElevation = status?.requiresElevation ?? false;
+  const services = status?.networkServices ?? [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.space['4'] }}>
@@ -252,39 +256,85 @@ function SystemProxyPanel({ status, loading, error, onEnable, onDisable }: Syste
           </span>
         </div>
 
-        {/* Toggle button — only on Windows */}
-        {isWindows && (
+        {/* Toggle button */}
+        {canAutomate && (
           isEnabled ? (
-            <button
-              onClick={onDisable}
-              disabled={loading}
-              style={dangerButtonStyle(loading)}
-            >
+            <button onClick={onDisable} disabled={loading} style={dangerButtonStyle(loading)}>
               {loading ? 'Disabling…' : 'Disable System Proxy'}
             </button>
           ) : (
-            <button
-              onClick={onEnable}
-              disabled={loading}
-              style={primaryButtonStyle(loading)}
-            >
-              {loading ? 'Enabling…' : 'Enable System Proxy (port 8888)'}
+            <button onClick={onEnable} disabled={loading} style={primaryButtonStyle(loading)}>
+              {loading
+                ? (needsElevation ? 'Waiting for authorisation…' : 'Enabling…')
+                : (needsElevation ? '🔐 Enable System Proxy (port 8888)' : 'Enable System Proxy (port 8888)')}
             </button>
           )
         )}
 
-        {/* Platform notice for non-Windows */}
-        {status && !isWindows && (
-          <div style={{
-            fontSize: tokens.fontSize.sm,
-            color: tokens.text.muted,
-            fontStyle: 'italic',
-          }}>
-            Automatic proxy configuration is only available on Windows.
-            Use the setup guide below.
+        {/* No automation support (Linux) */}
+        {status && !canAutomate && (
+          <div style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted, fontStyle: 'italic' }}>
+            Automatic proxy configuration is not supported on this platform. Use the setup guide below.
           </div>
         )}
       </div>
+
+      {/* macOS elevation notice */}
+      {isMacos && canAutomate && (
+        <div style={{
+          display: 'flex',
+          gap: tokens.space['3'],
+          padding: tokens.space['4'],
+          background: tokens.surface.elevated,
+          border: `1px solid ${tokens.border.subtle}`,
+          borderRadius: tokens.radius.md,
+          fontSize: tokens.fontSize.sm,
+          color: tokens.text.secondary,
+        }}>
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
+          <div>
+            <strong style={{ color: tokens.text.primary }}>macOS requires administrator access</strong> to change system proxy settings.
+            Clicking Enable will show a native <strong style={{ color: tokens.text.primary }}>Touch ID or password prompt</strong>.
+            {services.length > 0 && (
+              <span style={{ color: tokens.text.muted }}>
+                {' '}Will apply to: <em>{services.join(', ')}</em>.
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* macOS cert trust reminder when proxy is being enabled */}
+      {isMacos && canAutomate && !isEnabled && (
+        <div style={{
+          display: 'flex',
+          gap: tokens.space['3'],
+          padding: tokens.space['4'],
+          background: tokens.surface.elevated,
+          border: `1px solid ${tokens.border.subtle}`,
+          borderRadius: tokens.radius.md,
+          fontSize: tokens.fontSize.sm,
+          color: tokens.text.muted,
+        }}>
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>💡</span>
+          <div>
+            For <strong style={{ color: tokens.text.secondary }}>HTTPS traffic</strong>, also trust the APIprox CA certificate
+            so apps don't reject the intercepted connection.
+            Go to <strong style={{ color: tokens.text.secondary }}>Settings → Trust Certificate</strong> first.
+          </div>
+        </div>
+      )}
+
+      {/* Windows — simpler, no elevation needed */}
+      {isWindows && canAutomate && (
+        <div style={{
+          fontSize: tokens.fontSize.xs,
+          color: tokens.text.muted,
+        }}>
+          Sets the system proxy via registry (HKCU Internet Settings). No administrator rights required.
+          Applies to Chrome, Edge, and .NET HttpClient (WinHTTP).
+        </div>
+      )}
 
       {error && (
         <div style={{
@@ -295,7 +345,9 @@ function SystemProxyPanel({ status, loading, error, onEnable, onDisable }: Syste
           fontSize: tokens.fontSize.sm,
           color: tokens.text.danger,
         }}>
-          {error}
+          {error === 'Authentication cancelled'
+            ? '🔐 Authentication cancelled — system proxy was not changed.'
+            : `❌ ${error}`}
         </div>
       )}
     </div>

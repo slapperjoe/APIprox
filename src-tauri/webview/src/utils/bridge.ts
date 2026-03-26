@@ -24,6 +24,10 @@ export interface SystemProxyStatus {
   platform: string;
   /** Whether set/clear automation is supported on this platform */
   automationSupported: boolean;
+  /** macOS only: whether Touch ID / password is required to change settings */
+  requiresElevation: boolean;
+  /** macOS only: network services the proxy will be applied to */
+  networkServices: string[];
 }
 
 export const bridge = {

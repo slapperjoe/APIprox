@@ -12,8 +12,12 @@ pub struct SystemProxyStatus {
     pub port: Option<u16>,
     /// "windows" | "macos" | "linux" | "unknown"
     pub platform: String,
-    /// Whether automation is supported on this platform (Windows only)
+    /// Whether set/clear automation is supported on this platform
     pub automation_supported: bool,
+    /// macOS only: whether elevation (Touch ID / password) is required to change settings
+    pub requires_elevation: bool,
+    /// macOS only: the network service(s) the proxy will be applied to
+    pub network_services: Vec<String>,
 }
 
 /// Get the current system HTTP proxy configuration.
@@ -25,17 +29,10 @@ pub async fn get_system_proxy_status(_state: State<'_, AppState>) -> Result<Syst
     }
     #[cfg(target_os = "macos")]
     {
-        Ok(SystemProxyStatus {
-            enabled: false,
-            host: String::new(),
-            port: None,
-            platform: "macos".to_string(),
-            automation_supported: false,
-        })
+        get_system_proxy_macos()
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        // Check HTTPS_PROXY / HTTP_PROXY env vars as a best-effort read
         let proxy_env = std::env::var("HTTPS_PROXY")
             .or_else(|_| std::env::var("HTTP_PROXY"))
             .unwrap_or_default();
@@ -46,33 +43,175 @@ pub async fn get_system_proxy_status(_state: State<'_, AppState>) -> Result<Syst
             port: None,
             platform: "linux".to_string(),
             automation_supported: false,
+            requires_elevation: false,
+            network_services: vec![],
         })
     }
 }
 
-/// Set the system HTTP+HTTPS proxy to 127.0.0.1:{port} (Windows only).
+/// Set the system HTTP+HTTPS proxy to 127.0.0.1:{port}.
+/// On macOS this triggers a Touch ID / password prompt via osascript.
 #[tauri::command]
 pub async fn set_system_proxy(port: u16, _state: State<'_, AppState>) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         set_proxy_windows(port)
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        Err("System proxy automation is only supported on Windows. Set HTTPS_PROXY=http://localhost:{port} manually.".to_string())
+        set_proxy_macos(port)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = port;
+        Err("System proxy automation is not supported on this platform. Set HTTPS_PROXY=http://127.0.0.1:<port> manually.".to_string())
     }
 }
 
-/// Clear the system HTTP+HTTPS proxy (Windows only).
+/// Clear the system HTTP+HTTPS proxy.
+/// On macOS this triggers a Touch ID / password prompt via osascript.
 #[tauri::command]
 pub async fn clear_system_proxy(_state: State<'_, AppState>) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         clear_proxy_windows()
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        Err("System proxy automation is only supported on Windows.".to_string())
+        clear_proxy_macos()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Err("System proxy automation is not supported on this platform.".to_string())
+    }
+}
+
+// ── macOS implementation ────────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+fn active_network_services() -> Vec<String> {
+    // List all network services; lines starting with '*' are disabled.
+    let output = Command::new("networksetup")
+        .args(["-listallnetworkservices"])
+        .output()
+        .unwrap_or_else(|_| std::process::Output {
+            status: std::process::ExitStatus::default(),
+            stdout: vec![],
+            stderr: vec![],
+        });
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.starts_with('*') && !l.contains("An asterisk") && !l.trim().is_empty())
+        .map(|l| l.trim().to_string())
+        .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn get_system_proxy_macos() -> Result<SystemProxyStatus, String> {
+    let services = active_network_services();
+    let primary = services.first().cloned().unwrap_or_else(|| "Wi-Fi".to_string());
+
+    // Read web proxy for the primary service (no elevation needed)
+    let output = Command::new("networksetup")
+        .args(["-getwebproxy", &primary])
+        .output()
+        .map_err(|e| format!("networksetup failed: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse output: "Enabled: Yes\nServer: 127.0.0.1\nPort: 8888\n..."
+    let enabled = stdout.lines()
+        .find(|l| l.starts_with("Enabled:"))
+        .map(|l| l.contains("Yes"))
+        .unwrap_or(false);
+
+    let host = stdout.lines()
+        .find(|l| l.starts_with("Server:"))
+        .and_then(|l| l.split(':').nth(1))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+
+    let port = stdout.lines()
+        .find(|l| l.starts_with("Port:"))
+        .and_then(|l| l.split(':').nth(1))
+        .and_then(|s| s.trim().parse::<u16>().ok());
+
+    Ok(SystemProxyStatus {
+        enabled,
+        host,
+        port,
+        platform: "macos".to_string(),
+        automation_supported: true,
+        requires_elevation: true,
+        network_services: services,
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn set_proxy_macos(port: u16) -> Result<(), String> {
+    let services = active_network_services();
+    if services.is_empty() {
+        return Err("No active network services found".to_string());
+    }
+
+    // Build a shell command that sets HTTP + HTTPS proxy on every active service
+    let cmds: Vec<String> = services.iter().flat_map(|svc| {
+        vec![
+            format!("networksetup -setwebproxy '{}' 127.0.0.1 {}", svc, port),
+            format!("networksetup -setsecurewebproxy '{}' 127.0.0.1 {}", svc, port),
+            format!("networksetup -setwebproxystate '{}' on", svc),
+            format!("networksetup -setsecurewebproxystate '{}' on", svc),
+        ]
+    }).collect();
+
+    run_with_elevation(&cmds.join(" && "))
+}
+
+#[cfg(target_os = "macos")]
+fn clear_proxy_macos() -> Result<(), String> {
+    let services = active_network_services();
+    if services.is_empty() {
+        return Err("No active network services found".to_string());
+    }
+
+    let cmds: Vec<String> = services.iter().flat_map(|svc| {
+        vec![
+            format!("networksetup -setwebproxystate '{}' off", svc),
+            format!("networksetup -setsecurewebproxystate '{}' off", svc),
+        ]
+    }).collect();
+
+    run_with_elevation(&cmds.join(" && "))
+}
+
+/// Execute a shell command with administrator privileges via osascript.
+/// On modern Macs this shows the native Touch ID / password prompt.
+#[cfg(target_os = "macos")]
+fn run_with_elevation(shell_cmd: &str) -> Result<(), String> {
+    // Escape single quotes in the shell command for embedding in AppleScript
+    let escaped = shell_cmd.replace('\\', "\\\\").replace('"', "\\\"");
+
+    let script = format!(
+        r#"do shell script "{}" with administrator privileges"#,
+        escaped
+    );
+
+    let output = Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| format!("osascript failed to launch: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // User cancelled the auth dialog — provide a friendly message
+        if stderr.contains("User canceled") || stderr.contains("-128") {
+            Err("Authentication cancelled".to_string())
+        } else {
+            Err(format!("Elevation failed: {}", stderr.trim()))
+        }
     }
 }
 
@@ -120,6 +259,8 @@ fn get_system_proxy_windows() -> Result<SystemProxyStatus, String> {
         port,
         platform: "windows".to_string(),
         automation_supported: true,
+        requires_elevation: false,
+        network_services: vec![],
     })
 }
 
