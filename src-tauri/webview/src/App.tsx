@@ -179,14 +179,14 @@ function App() {
 
       {/* Content Area */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        {activeTab === 'proxy' && (
-          <div style={{ padding: '20px' }}>
-            <ServerControl onStatusChange={(info) => {
-              setProxyEnabled(info.running);
-              setProxyStatus(info.running ? { port: info.port, mode: info.mode } : null);
-            }} />
-            
-            <div style={{
+        {/* ServerControl is always mounted to preserve mode/sniffer state across tab switches */}
+        <div style={{ display: activeTab === 'proxy' ? 'block' : 'none', padding: '20px' }}>
+          <ServerControl onStatusChange={(info) => {
+            setProxyEnabled(info.running);
+            setProxyStatus(info.running ? { port: info.port, mode: info.mode } : null);
+          }} />
+
+          <div style={{
               padding: tokens.space['6'],
               background: tokens.surface.panel,
               borderRadius: tokens.radius.lg,
@@ -203,7 +203,6 @@ function App() {
               </ol>
             </div>
           </div>
-        )}
 
         {activeTab === 'traffic' && (
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

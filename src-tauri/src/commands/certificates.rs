@@ -40,7 +40,7 @@ pub async fn untrust_certificate(state: State<'_, AppState>) -> Result<TrustResu
 ///
 /// Platform strategy (all chosen to avoid requiring sudo/admin elevation):
 ///   macOS   — login keychain via `security add-trusted-cert` (user-level, no sudo)
-///   Windows — current-user cert store via `certutil -addstore -user Root`
+///   Windows — current-user cert store via `certutil -user -addstore Root`
 ///   Linux   — instructions only; no writable user-level trust store exists
 ///
 /// Firefox on all platforms uses its own NSS store and is NOT affected by
@@ -267,11 +267,12 @@ fn remove_windows() -> TrustResult {
 
 #[cfg(target_os = "windows")]
 fn install_windows(cert_path: &str) -> TrustResult {
-    // -addstore -user adds to the current user's store — no admin elevation needed.
+    // `-user` MUST come before the command verb (-addstore), otherwise certutil
+    // ignores it and writes to the machine store (requires elevation).
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let output = std::process::Command::new("certutil")
-        .args(["-addstore", "-user", "Root", cert_path])
+        .args(["-user", "-addstore", "Root", cert_path])
         .creation_flags(CREATE_NO_WINDOW)
         .output();
 

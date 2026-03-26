@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use rcgen::{
-    CertificateParams, DistinguishedName, DnType, IsCa, KeyPair, KeyUsagePurpose, SanType,
+    CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa, KeyPair,
+    KeyUsagePurpose, SanType,
 };
 use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::sign::CertifiedKey;
@@ -315,6 +316,13 @@ impl CertManager {
         leaf_params.not_before = now;
         leaf_params.not_after = now + Duration::days(LEAF_VALIDITY_DAYS);
         leaf_params.is_ca = IsCa::NoCa;
+        // Required by .NET/WCF and all modern TLS stacks — without ServerAuth in EKU
+        // the certificate is rejected even when the CA is trusted.
+        leaf_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+        leaf_params.key_usages = vec![
+            KeyUsagePurpose::DigitalSignature,
+            KeyUsagePurpose::KeyEncipherment,
+        ];
 
         let leaf_cert = leaf_params
             .signed_by(&leaf_key, &ca_cert, &ca_key)
