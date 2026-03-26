@@ -283,7 +283,20 @@ fn get_system_proxy_windows() -> Result<SystemProxyStatus, String> {
         .unwrap_or("")
         .to_string();
 
-    let (host, port) = parse_proxy_server(&proxy_server);
+    let (host, port) = {
+        // Handles "127.0.0.1:8888" or "http=127.0.0.1:8888;https=127.0.0.1:8888"
+        let clean = proxy_server
+            .split(';')
+            .next()
+            .unwrap_or(&proxy_server)
+            .trim_start_matches("http=")
+            .trim_start_matches("https=");
+        if let Some((h, p)) = clean.rsplit_once(':') {
+            (h.to_string(), p.parse::<u16>().ok())
+        } else {
+            (clean.to_string(), None)
+        }
+    };
 
     Ok(SystemProxyStatus {
         enabled,
