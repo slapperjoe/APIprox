@@ -38,7 +38,7 @@ export function CertificateManager() {
       setCertInfo(info);
     } catch (err: any) {
       console.error('Failed to load certificate info:', err);
-      setCertInfo({ exists: false, certPath: '', keyPath: '' });
+      setCertInfo({ exists: false, certPath: '', keyPath: '', isTrusted: false });
     }
   }
 
