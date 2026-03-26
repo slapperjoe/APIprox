@@ -16,6 +16,16 @@ export interface ProxyStatusResponse {
   targetUrl: string;
 }
 
+export interface SystemProxyStatus {
+  enabled: boolean;
+  host: string;
+  port: number | null;
+  /** "windows" | "macos" | "linux" | "unknown" */
+  platform: string;
+  /** Whether set/clear automation is supported on this platform */
+  automationSupported: boolean;
+}
+
 export const bridge = {
   // ── Proxy ──────────────────────────────────────────────────────────────────
   async startProxy(config: ProxyStartRequest): Promise<void> {
@@ -185,5 +195,18 @@ export const bridge = {
   /** Clears all in-memory pair history on the Rust side. */
   async clearFileWatchEvents(): Promise<any> {
     return invoke('clear_watcher_events');
+  },
+
+  // ── Sniffer / System Proxy ─────────────────────────────────────────────────
+  async getSystemProxyStatus(): Promise<SystemProxyStatus> {
+    return invoke('get_system_proxy_status');
+  },
+
+  async setSystemProxy(port: number): Promise<void> {
+    return invoke('set_system_proxy', { port });
+  },
+
+  async clearSystemProxy(): Promise<void> {
+    return invoke('clear_system_proxy');
   },
 };

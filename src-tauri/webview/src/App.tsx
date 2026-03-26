@@ -10,10 +10,11 @@ import { BreakpointsPage } from './components/BreakpointsPage';
 import { FileWatcherPage } from './components/FileWatcherPage';
 import { SettingsPage } from './components/SettingsPage';
 import { HelpPage } from './components/HelpPage';
+import { SnifferPage } from './components/SnifferPage';
 import { TrafficLog } from './types';
 import { tokens } from './styles/tokens';
 
-type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
+type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'sniffer' | 'settings' | 'help';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('proxy');
@@ -139,7 +140,7 @@ function App() {
             transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
           }}
         />
-        {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'settings', 'help'] as Tab[]).map((tab) => (
+        {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'sniffer', 'settings', 'help'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => { setActiveTab(tab); if (tab === 'breakpoints') setPausedCount(0); }}
@@ -155,7 +156,7 @@ function App() {
               position: 'relative',
             }}
           >
-            {tab === 'rules' ? 'Replace Rules' : tab === 'mock' ? 'Mock Server' : tab === 'filewatcher' ? 'File Watcher' : tab}
+            {tab === 'rules' ? 'Replace Rules' : tab === 'mock' ? 'Mock Server' : tab === 'filewatcher' ? 'File Watcher' : tab === 'sniffer' ? 'Sniffer' : tab}
           </button>
         ))}
       </div>
@@ -230,6 +231,8 @@ function App() {
         {activeTab === 'breakpoints' && <BreakpointsPage />}
         
         {activeTab === 'filewatcher' && <FileWatcherPage />}
+
+        {activeTab === 'sniffer' && <SnifferPage trafficLogs={trafficLogs} />}
 
         {activeTab === 'settings' && <SettingsPage />}
         
