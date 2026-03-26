@@ -311,29 +311,52 @@ function SystemProxyPanel({ status, loading, error, certTrusted, onEnable, onDis
         )}
       </div>
 
-      {/* macOS elevation notice */}
+      {/* macOS elevation notice — changes based on whether proxy is active */}
       {isMacos && canAutomate && (
-        <div style={{
-          display: 'flex',
-          gap: tokens.space['3'],
-          padding: tokens.space['4'],
-          background: tokens.surface.elevated,
-          border: `1px solid ${tokens.border.subtle}`,
-          borderRadius: tokens.radius.md,
-          fontSize: tokens.fontSize.sm,
-          color: tokens.text.secondary,
-        }}>
-          <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
-          <div>
-            <strong style={{ color: tokens.text.primary }}>macOS requires administrator access</strong> to change system proxy settings.
-            Clicking Enable will show a native <strong style={{ color: tokens.text.primary }}>Touch ID or password prompt</strong>.
-            {services.length > 0 && (
-              <span style={{ color: tokens.text.muted }}>
-                {' '}Will apply to: <em>{services.join(', ')}</em>.
-              </span>
-            )}
+        isEnabled ? (
+          <div style={{
+            display: 'flex',
+            gap: tokens.space['3'],
+            padding: tokens.space['4'],
+            background: '#1a2d1a',
+            border: `1px solid #2d5a2d`,
+            borderRadius: tokens.radius.md,
+            fontSize: tokens.fontSize.sm,
+            color: '#6fbf6f',
+          }}>
+            <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
+            <div>
+              <strong style={{ color: tokens.text.primary }}>Administrator access granted</strong>
+              {' '}— proxy is active on{' '}
+              {services.length > 0
+                ? <em>{services.join(', ')}</em>
+                : 'all network services'}.
+              {' '}Disable does not require another prompt.
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{
+            display: 'flex',
+            gap: tokens.space['3'],
+            padding: tokens.space['4'],
+            background: tokens.surface.elevated,
+            border: `1px solid ${tokens.border.subtle}`,
+            borderRadius: tokens.radius.md,
+            fontSize: tokens.fontSize.sm,
+            color: tokens.text.secondary,
+          }}>
+            <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
+            <div>
+              <strong style={{ color: tokens.text.primary }}>macOS requires administrator access</strong> to change system proxy settings.
+              Clicking Enable will show a native <strong style={{ color: tokens.text.primary }}>Touch ID or password prompt</strong>.
+              {services.length > 0 && (
+                <span style={{ color: tokens.text.muted }}>
+                  {' '}Will apply to: <em>{services.join(', ')}</em>.
+                </span>
+              )}
+            </div>
+          </div>
+        )
       )}
 
       {/* Cert trust — show reminder only when not yet trusted, confirmation when trusted */}

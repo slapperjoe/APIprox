@@ -175,6 +175,27 @@ fn clear_proxy_macos() -> Result<(), String> {
         return Err("No active network services found".to_string());
     }
 
+    // Try without elevation first — disable is less sensitive than enable and
+    // often succeeds without a Touch ID prompt on newer macOS versions.
+    let no_elevation_ok = services.iter().all(|svc| {
+        let web_ok = Command::new("networksetup")
+            .args(["-setwebproxystate", svc, "off"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        let https_ok = Command::new("networksetup")
+            .args(["-setsecurewebproxystate", svc, "off"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        web_ok && https_ok
+    });
+
+    if no_elevation_ok {
+        return Ok(());
+    }
+
+    // Fall back to elevated execution if direct commands were rejected.
     let cmds: Vec<String> = services.iter().flat_map(|svc| {
         vec![
             format!("networksetup -setwebproxystate '{}' off", svc),
