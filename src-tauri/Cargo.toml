@@ -75,3 +75,10 @@ windows = { version = "0.58", features = ["Win32_Graphics_Dwm", "Win32_Foundatio
 [dev-dependencies]
 tempfile = "3"
 rustls-pemfile = "2"
+
+[profile.release]
+opt-level = "z"       # optimise for size rather than speed
+lto = true            # link-time optimisation — eliminates dead code across crates
+codegen-units = 1     # single unit gives LTO the most visibility
+strip = "symbols"     # strip debug symbols (often 30-50% of binary on Windows)
+panic = "abort"       # removes unwinding machinery (~10% saving)
