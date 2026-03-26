@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { bridge } from '../utils/bridge';
 import { tokens } from '../styles/tokens';
+import { SystemProxyPanel } from './SystemProxyPanel';
+import { ProxySetupGuide } from './ProxySetupGuide';
+
+type ProxyMode = 'proxy' | 'mock' | 'both' | 'sniffer' | 'sniffer-mock';
+type SetupTab = 'env' | 'httpclient' | 'iisexpress' | 'wcf';
 
 interface ServerControlProps {
   onStatusChange?: (info: { running: boolean; port: number; mode: string }) => void;
@@ -10,10 +15,21 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyPort, setProxyPort] = useState(8888);
   const [targetUrl, setTargetUrl] = useState('http://localhost:3000');
-  const [mode, setMode] = useState<'proxy' | 'mock' | 'both'>('proxy');
+  const [mode, setMode] = useState<ProxyMode>('proxy');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
+
+  // Sniffer-specific state — only active when a sniffer mode is selected
+  const [sysProxyStatus, setSysProxyStatus] = useState<any>(null);
+  const [sysProxyLoading, setSysProxyLoading] = useState(false);
+  const [sysProxyError, setSysProxyError] = useState<string | null>(null);
+  const [certTrusted, setCertTrusted] = useState<boolean | null>(null);
+
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeSetupTab, setActiveSetupTab] = useState<SetupTab>('env');
+
+  const isSniffer = mode === 'sniffer' || mode === 'sniffer-mock';
 
   useEffect(() => {
     loadStatus();
@@ -21,19 +37,46 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Poll system proxy status and cert trust only when in a sniffer mode
+  useEffect(() => {
+    if (!isSniffer) return;
+    loadSysProxyStatus();
+    loadCertStatus();
+    const interval = setInterval(loadSysProxyStatus, 5000);
+    return () => clearInterval(interval);
+  }, [isSniffer]);
+
   async function loadStatus() {
     try {
-      const status = await bridge.getProxyStatus();
-      setStatus(status);
-      setProxyEnabled(status.running);
-      if (status.port) setProxyPort(status.port);
-      if (status.running) {
-        if (status.mode) setMode(status.mode as any);
-        if (status.targetUrl !== undefined) setTargetUrl(status.targetUrl);
+      const s = await bridge.getProxyStatus();
+      setStatus(s);
+      setProxyEnabled(s.running);
+      if (s.port) setProxyPort(s.port);
+      if (s.running) {
+        if (s.mode) setMode(s.mode as ProxyMode);
+        if (s.targetUrl !== undefined) setTargetUrl(s.targetUrl);
       }
-      onStatusChange?.({ running: status.running, port: status.port ?? proxyPort, mode: status.mode ?? mode });
+      onStatusChange?.({ running: s.running, port: s.port ?? proxyPort, mode: s.mode ?? mode });
     } catch (err: any) {
-      console.error('Failed to load status:', err);
+      console.error('Failed to load proxy status:', err);
+    }
+  }
+
+  async function loadSysProxyStatus() {
+    try {
+      const s = await bridge.getSystemProxyStatus();
+      setSysProxyStatus(s);
+    } catch (err: any) {
+      console.error('[Sniffer] Failed to load system proxy status:', err);
+    }
+  }
+
+  async function loadCertStatus() {
+    try {
+      const info = await bridge.getCertificateInfo() as any;
+      setCertTrusted(info?.isTrusted ?? false);
+    } catch {
+      setCertTrusted(false);
     }
   }
 
@@ -41,9 +84,27 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     setLoading(true);
     setError(null);
     try {
-      await bridge.startProxy({ port: proxyPort, mode, targetUrl });
+      // Map sniffer modes to the underlying proxy mode
+      const backendMode = mode === 'sniffer' ? 'proxy' : mode === 'sniffer-mock' ? 'both' : mode;
+      await bridge.startProxy({ port: proxyPort, mode: backendMode, targetUrl });
       setProxyEnabled(true);
       onStatusChange?.({ running: true, port: proxyPort, mode });
+
+      // Sniffer modes also set the OS system proxy automatically
+      if (isSniffer) {
+        setSysProxyLoading(true);
+        setSysProxyError(null);
+        try {
+          await bridge.setSystemProxy(proxyPort);
+          await loadSysProxyStatus();
+          await loadCertStatus();
+        } catch (sysErr: any) {
+          // System proxy failure is non-fatal — surface as a warning
+          setSysProxyError(sysErr?.message ?? String(sysErr));
+        } finally {
+          setSysProxyLoading(false);
+        }
+      }
     } catch (err: any) {
       setError(err.message || String(err) || 'Failed to start proxy');
     } finally {
@@ -55,6 +116,19 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     setLoading(true);
     setError(null);
     try {
+      // Clear system proxy first (non-blocking on failure — e.g. macOS Touch ID cancelled)
+      if (isSniffer) {
+        setSysProxyLoading(true);
+        setSysProxyError(null);
+        try {
+          await bridge.clearSystemProxy();
+          await loadSysProxyStatus();
+        } catch (sysErr: any) {
+          setSysProxyError(sysErr?.message ?? String(sysErr));
+        } finally {
+          setSysProxyLoading(false);
+        }
+      }
       await bridge.stopProxy();
       setProxyEnabled(false);
       onStatusChange?.({ running: false, port: proxyPort, mode });
@@ -64,6 +138,42 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
       setLoading(false);
     }
   }
+
+  // Manual OS proxy toggle (shown inside SystemProxyPanel when proxy is already running)
+  async function handleEnableSysProxy() {
+    setSysProxyLoading(true);
+    setSysProxyError(null);
+    try {
+      await bridge.setSystemProxy(proxyPort);
+      await loadSysProxyStatus();
+      await loadCertStatus();
+    } catch (err: any) {
+      setSysProxyError(err?.message ?? String(err));
+    } finally {
+      setSysProxyLoading(false);
+    }
+  }
+
+  async function handleDisableSysProxy() {
+    setSysProxyLoading(true);
+    setSysProxyError(null);
+    try {
+      await bridge.clearSystemProxy();
+      await loadSysProxyStatus();
+    } catch (err: any) {
+      setSysProxyError(err?.message ?? String(err));
+    } finally {
+      setSysProxyLoading(false);
+    }
+  }
+
+  const modeLabelMap: Record<ProxyMode, string> = {
+    proxy: 'Proxy Only',
+    mock: 'Mock Only',
+    both: 'Proxy + Mock',
+    sniffer: 'Sniffer (System Proxy)',
+    'sniffer-mock': 'Sniffer + Mock',
+  };
 
   return (
     <div style={{
@@ -77,33 +187,66 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
       </h2>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* Target URL Input */}
+        {/* Mode Selection — first, as it controls what else is shown */}
         <div>
           <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
-            Target URL
+            Mode
           </label>
-          <input
-            type="text"
-            value={targetUrl}
-            onChange={(e) => setTargetUrl(e.target.value)}
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as ProxyMode)}
             disabled={proxyEnabled || loading}
-            placeholder="http://localhost:3000"
             style={{
-              width: '100%',
               padding: '8px 12px',
               background: tokens.surface.input,
               border: `1px solid ${tokens.border.subtle}`,
               borderRadius: tokens.radius.md,
               color: tokens.text.secondary,
-              fontSize: tokens.fontSize.base
+              fontSize: tokens.fontSize.base,
             }}
-          />
-          <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted, marginTop: '4px' }}>
-            The upstream server to forward requests to (e.g., http://localhost:8080, https://api.example.com)
-          </div>
+          >
+            <option value="proxy">Proxy Only</option>
+            <option value="mock">Mock Only</option>
+            <option value="both">Proxy + Mock</option>
+            <option value="sniffer">Sniffer (System Proxy)</option>
+            <option value="sniffer-mock">Sniffer + Mock</option>
+          </select>
+          {isSniffer && (
+            <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted, marginTop: '6px' }}>
+              Starts the proxy server and automatically sets the OS system proxy — all HTTP/HTTPS traffic is captured.
+            </div>
+          )}
         </div>
 
-        {/* Port Input */}
+        {/* Target URL — hidden in sniffer mode (system proxy routes by request destination) */}
+        {!isSniffer && (
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
+              Target URL
+            </label>
+            <input
+              type="text"
+              value={targetUrl}
+              onChange={(e) => setTargetUrl(e.target.value)}
+              disabled={proxyEnabled || loading}
+              placeholder="http://localhost:3000"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: tokens.surface.input,
+                border: `1px solid ${tokens.border.subtle}`,
+                borderRadius: tokens.radius.md,
+                color: tokens.text.secondary,
+                fontSize: tokens.fontSize.base,
+              }}
+            />
+            <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted, marginTop: '4px' }}>
+              The upstream server to forward requests to (e.g., http://localhost:8080, https://api.example.com)
+            </div>
+          </div>
+        )}
+
+        {/* Port */}
         <div>
           <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
             Port
@@ -120,36 +263,12 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
               border: `1px solid ${tokens.border.subtle}`,
               borderRadius: tokens.radius.md,
               color: tokens.text.secondary,
-              fontSize: tokens.fontSize.base
+              fontSize: tokens.fontSize.base,
             }}
           />
         </div>
 
-        {/* Mode Selection */}
-        <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
-            Mode
-          </label>
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as any)}
-            disabled={proxyEnabled || loading}
-            style={{
-              padding: '8px 12px',
-              background: tokens.surface.input,
-              border: `1px solid ${tokens.border.subtle}`,
-              borderRadius: tokens.radius.md,
-              color: tokens.text.secondary,
-              fontSize: tokens.fontSize.base
-            }}
-          >
-            <option value="proxy">Proxy Only</option>
-            <option value="mock">Mock Only</option>
-            <option value="both">Proxy + Mock</option>
-          </select>
-        </div>
-
-        {/* Control Buttons */}
+        {/* Start / Stop */}
         <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
           {!proxyEnabled ? (
             <button
@@ -164,10 +283,10 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
                 fontSize: tokens.fontSize.base,
                 fontWeight: 500,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1
+                opacity: loading ? 0.6 : 1,
               }}
             >
-              {loading ? 'Starting...' : 'Start Proxy'}
+              {loading ? 'Starting…' : isSniffer ? '▶ Start Sniffer' : '▶ Start Proxy'}
             </button>
           ) : (
             <button
@@ -182,15 +301,15 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
                 fontSize: tokens.fontSize.base,
                 fontWeight: 500,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1
+                opacity: loading ? 0.6 : 1,
               }}
             >
-              {loading ? 'Stopping...' : 'Stop Proxy'}
+              {loading ? 'Stopping…' : isSniffer ? '■ Stop Sniffer' : '■ Stop Proxy'}
             </button>
           )}
         </div>
 
-        {/* Status Indicator */}
+        {/* Running status banner */}
         {proxyEnabled && (
           <div style={{
             padding: '12px',
@@ -198,13 +317,12 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             border: '1px solid #2d6a2d',
             borderRadius: tokens.radius.md,
             fontSize: tokens.fontSize.base,
-            color: '#6fbf6f'
+            color: '#6fbf6f',
           }}>
-            🟢 {mode === 'both' ? 'Proxy + Mock' : mode === 'mock' ? 'Mock server' : 'Proxy'} running on port {proxyPort}
+            🟢 {modeLabelMap[mode]} running on port {proxyPort}
           </div>
         )}
 
-        {/* Error Display */}
         {error && (
           <div style={{
             padding: '12px',
@@ -212,9 +330,59 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             border: '1px solid #6a2d2d',
             borderRadius: tokens.radius.md,
             fontSize: tokens.fontSize.base,
-            color: '#bf6f6f'
+            color: '#bf6f6f',
           }}>
             ❌ {error}
+          </div>
+        )}
+
+        {/* System proxy panel — only in sniffer modes */}
+        {isSniffer && (
+          <div style={{
+            padding: '16px',
+            background: tokens.surface.elevated,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.md,
+          }}>
+            <div style={{ fontSize: tokens.fontSize.sm, fontWeight: 600, color: tokens.text.secondary, marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              System Proxy
+            </div>
+            <SystemProxyPanel
+              status={sysProxyStatus}
+              loading={sysProxyLoading}
+              error={sysProxyError}
+              certTrusted={certTrusted}
+              onEnable={handleEnableSysProxy}
+              onDisable={handleDisableSysProxy}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Advanced setup guide — collapsed by default */}
+      <div style={{ marginTop: '16px', borderTop: `1px solid ${tokens.border.default}`, paddingTop: '8px' }}>
+        <button
+          onClick={() => setShowAdvanced(v => !v)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: tokens.space['3'],
+            padding: `${tokens.space['3']} 0`,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: tokens.text.muted,
+            fontSize: tokens.fontSize.sm,
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ fontSize: '10px', transition: 'transform 0.15s', transform: showAdvanced ? 'rotate(90deg)' : 'none' }}>▶</span>
+          Advanced: manual proxy setup (for apps that don't use the system proxy)
+        </button>
+        {showAdvanced && (
+          <div style={{ paddingBottom: '8px' }}>
+            <ProxySetupGuide activeTab={activeSetupTab} onTabChange={setActiveSetupTab} />
           </div>
         )}
       </div>

@@ -10,11 +10,29 @@ import { BreakpointsPage } from './components/BreakpointsPage';
 import { FileWatcherPage } from './components/FileWatcherPage';
 import { SettingsPage } from './components/SettingsPage';
 import { HelpPage } from './components/HelpPage';
-import { SnifferPage } from './components/SnifferPage';
 import { TrafficLog } from './types';
 import { tokens } from './styles/tokens';
 
-type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'sniffer' | 'settings' | 'help';
+type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
+
+const TAB_LABELS: Record<Tab, string> = {
+  proxy: 'Proxy',
+  traffic: 'Traffic',
+  rules: 'Replace Rules',
+  mock: 'Mock Server',
+  breakpoints: 'Breakpoints',
+  filewatcher: 'File Watcher',
+  settings: 'Settings',
+  help: 'Help',
+};
+
+const MODE_TITLE_LABELS: Record<string, string> = {
+  proxy: 'Proxy',
+  mock: 'Mock',
+  both: 'Proxy + Mock',
+  sniffer: 'Sniffer',
+  'sniffer-mock': 'Sniffer + Mock',
+};
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('proxy');
@@ -54,9 +72,7 @@ function App() {
   useEffect(() => {
     const appWindow = getCurrentWindow();
     if (proxyEnabled && proxyStatus) {
-      const modeLabel = proxyStatus.mode === 'both' ? 'Proxy + Mock'
-        : proxyStatus.mode === 'mock' ? 'Mock'
-        : 'Proxy';
+      const modeLabel = MODE_TITLE_LABELS[proxyStatus.mode] ?? proxyStatus.mode;
       // macOS renders color emoji in the title bar; Windows/Linux do not
       if (platformOS === 'macos') {
         appWindow.setTitle(`APIprox  [🟢 ${modeLabel} :${proxyStatus.port}]`);
@@ -140,7 +156,7 @@ function App() {
             transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
           }}
         />
-        {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'sniffer', 'settings', 'help'] as Tab[]).map((tab) => (
+        {(['proxy', 'traffic', 'rules', 'mock', 'breakpoints', 'filewatcher', 'settings', 'help'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => { setActiveTab(tab); if (tab === 'breakpoints') setPausedCount(0); }}
@@ -156,7 +172,7 @@ function App() {
               position: 'relative',
             }}
           >
-            {tab === 'rules' ? 'Replace Rules' : tab === 'mock' ? 'Mock Server' : tab === 'filewatcher' ? 'File Watcher' : tab === 'sniffer' ? 'Sniffer' : tab}
+            {TAB_LABELS[tab]}
           </button>
         ))}
       </div>
@@ -231,8 +247,6 @@ function App() {
         {activeTab === 'breakpoints' && <BreakpointsPage />}
         
         {activeTab === 'filewatcher' && <FileWatcherPage />}
-
-        {activeTab === 'sniffer' && <SnifferPage trafficLogs={trafficLogs} />}
 
         {activeTab === 'settings' && <SettingsPage />}
         
