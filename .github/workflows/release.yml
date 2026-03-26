@@ -127,6 +127,50 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build changelog from commits since last tag
+        id: changelog
+        run: |
+          VERSION="v${{ needs.check-ci.outputs.version }}"
+          # Find the previous tag to diff against
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${VERSION}$" | head -1)
+          if [ -z "$PREV_TAG" ]; then
+            # No previous tag — include all commits
+            RANGE="HEAD"
+          else
+            RANGE="${PREV_TAG}..HEAD"
+          fi
+          echo "Changelog range: ${PREV_TAG:-<beginning>} → HEAD"
+
+          # Collect commits: hash (short) + subject, skip merge commits and
+          # CI-only noise (bump version, update lock, chore: release)
+          COMMITS=$(git log "$RANGE" \
+            --no-merges \
+            --pretty=format:"- %s ([%h](../../commit/%H))" \
+            | grep -Ev "^- (chore: bump version|chore: release|Merge branch|update Cargo\.lock)" \
+            || true)
+
+          if [ -z "$COMMITS" ]; then
+            COMMITS="_No user-facing changes since ${PREV_TAG}._"
+          fi
+
+          # Write to a file so newlines survive the env-var boundary
+          {
+            echo "## What's changed"
+            echo ""
+            echo "$COMMITS"
+            if [ -n "$PREV_TAG" ]; then
+              echo ""
+              echo "**Full diff**: [$PREV_TAG → $VERSION](../../compare/${PREV_TAG}...${VERSION})"
+            fi
+          } > changelog.md
+
+          cat changelog.md
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -142,7 +186,7 @@ jobs:
           tag_name: v${{ needs.check-ci.outputs.version }}
           name: APIprox v${{ needs.check-ci.outputs.version }}
           draft: true
-          generate_release_notes: true
+          body_path: changelog.md
           files: artifacts/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
