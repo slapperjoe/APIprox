@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { bridge } from '../utils/bridge';
 import { tokens } from '../styles/tokens';
 import { SystemProxyPanel } from './SystemProxyPanel';
@@ -15,10 +15,17 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyPort, setProxyPort] = useState(8888);
   const [targetUrl, setTargetUrl] = useState('http://localhost:3000');
-  const [mode, setMode] = useState<ProxyMode>('proxy');
+  // Mode is a frontend concept — backend only knows 'proxy'/'mock'/'both'.
+  // Persist to localStorage so it survives app restarts.
+  const [mode, setModeState] = useState<ProxyMode>(
+    () => (localStorage.getItem('apiprox-mode') as ProxyMode) ?? 'proxy'
+  );
+  const setMode = (m: ProxyMode) => { setModeState(m); localStorage.setItem('apiprox-mode', m); };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
+  // Prevent the background poll from interfering with in-progress start/stop operations.
+  const operationInProgress = useRef(false);
 
   // Sniffer-specific state — only active when a sniffer mode is selected
   const [sysProxyStatus, setSysProxyStatus] = useState<any>(null);
@@ -47,16 +54,17 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
   }, [isSniffer]);
 
   async function loadStatus() {
+    // Skip polling while handleStart/handleStop is running to avoid state flickering.
+    if (operationInProgress.current) return;
     try {
       const s = await bridge.getProxyStatus();
       setStatus(s);
       setProxyEnabled(s.running);
       if (s.port) setProxyPort(s.port);
-      if (s.running) {
-        if (s.mode) setMode(s.mode as ProxyMode);
-        if (s.targetUrl !== undefined) setTargetUrl(s.targetUrl);
-      }
-      onStatusChange?.({ running: s.running, port: s.port ?? proxyPort, mode: s.mode ?? mode });
+      // Never overwrite the frontend mode from the backend — sniffer/sniffer-mock are
+      // frontend-only concepts; the backend only returns 'proxy' or 'both' for those.
+      if (s.running && s.targetUrl !== undefined) setTargetUrl(s.targetUrl);
+      onStatusChange?.({ running: s.running, port: s.port ?? proxyPort, mode });
     } catch (err: any) {
       console.error('Failed to load proxy status:', err);
     }
@@ -81,6 +89,7 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
   }
 
   async function handleStart() {
+    operationInProgress.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -108,11 +117,13 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     } catch (err: any) {
       setError(err.message || String(err) || 'Failed to start proxy');
     } finally {
+      operationInProgress.current = false;
       setLoading(false);
     }
   }
 
   async function handleStop() {
+    operationInProgress.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -135,6 +146,7 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     } catch (err: any) {
       setError(err.message || String(err) || 'Failed to stop proxy');
     } finally {
+      operationInProgress.current = false;
       setLoading(false);
     }
   }

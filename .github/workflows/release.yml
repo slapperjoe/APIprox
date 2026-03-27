@@ -23,13 +23,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Need push access — use a token with write permission
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      - name: Read version from tauri.conf.json
-        id: version
-        run: |
-          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing v$VERSION"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Verify latest CI build on main passed
         env:
@@ -46,6 +48,26 @@ jobs:
             echo "❌ Latest CI build did not pass (status: $STATUS). Fix it before releasing."
             exit 1
           fi
+
+      - name: Bump patch version
+        run: |
+          node scripts/version.js increment
+          node scripts/version.js sync
+
+      - name: Read bumped version
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scripts/version.js package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/webview/package.json
+          git commit -m "chore: bump version to v${{ steps.version.outputs.version }}"
+          git push origin HEAD:main
 
   # ── Build matrix (macOS + Windows) ─────────────────────────────────────────
   build:
@@ -66,6 +88,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          ref: main
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -134,6 +157,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
 
       - name: Build changelog from commits since last tag
         id: changelog
