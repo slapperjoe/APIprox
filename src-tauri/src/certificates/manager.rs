@@ -155,11 +155,17 @@ impl CertManager {
 
         #[cfg(target_os = "windows")]
         {
-            // Query the current-user Root store — no elevation required.
+            // Use PowerShell's cert provider — reliable subject-based lookup with no
+            // certutil ambiguities around exit codes or exact-name matching.
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            let output = std::process::Command::new("certutil")
-                .args(["-user", "-store", "Root", "APIprox"])
+            let output = std::process::Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "if (Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object { $_.Subject -like '*APIprox*' }) { exit 0 } else { exit 1 }",
+                ])
                 .creation_flags(CREATE_NO_WINDOW)
                 .output();
             matches!(output, Ok(o) if o.status.success())

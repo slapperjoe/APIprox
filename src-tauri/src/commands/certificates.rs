@@ -40,7 +40,7 @@ pub async fn untrust_certificate(state: State<'_, AppState>) -> Result<TrustResu
 ///
 /// Platform strategy (all chosen to avoid requiring sudo/admin elevation):
 ///   macOS   — login keychain via `security add-trusted-cert` (user-level, no sudo)
-///   Windows — current-user cert store via `certutil -user -addstore Root`
+///   Windows — current-user cert store via PowerShell `Import-Certificate` (no elevation needed)
 ///   Linux   — instructions only; no writable user-level trust store exists
 ///
 /// Firefox on all platforms uses its own NSS store and is NOT affected by
@@ -232,9 +232,13 @@ fn macos_manual_steps(cert_path: &str) -> Vec<String> {
 fn remove_windows() -> TrustResult {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    // -delstore matches by friendly name / subject CN
-    let output = std::process::Command::new("certutil")
-        .args(["-user", "-delstore", "Root", "APIprox"])
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object { $_.Subject -like '*APIprox*' } | Remove-Item",
+        ])
         .creation_flags(CREATE_NO_WINDOW)
         .output();
     match output {
@@ -249,7 +253,7 @@ fn remove_windows() -> TrustResult {
             let detail = String::from_utf8_lossy(&out.stderr).into_owned();
             TrustResult {
                 success: false,
-                message: format!("certutil -delstore failed: {}", detail.trim()),
+                message: format!("Failed to remove certificate: {}", detail.trim()),
                 firefox_note: String::new(),
                 manual_steps: vec![],
                 cert_info: CertInfo::default(),
@@ -257,7 +261,7 @@ fn remove_windows() -> TrustResult {
         }
         Err(e) => TrustResult {
             success: false,
-            message: format!("Could not run certutil: {}", e),
+            message: format!("Could not run PowerShell: {}", e),
             firefox_note: String::new(),
             manual_steps: vec![],
             cert_info: CertInfo::default(),
@@ -267,12 +271,16 @@ fn remove_windows() -> TrustResult {
 
 #[cfg(target_os = "windows")]
 fn install_windows(cert_path: &str) -> TrustResult {
-    // `-user` MUST come before the command verb (-addstore), otherwise certutil
-    // ignores it and writes to the machine store (requires elevation).
+    // Use PowerShell's Import-Certificate — no certutil dialogs or exit-code ambiguity.
+    // Import-Certificate adds to CurrentUser\Root without requiring elevation.
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    let output = std::process::Command::new("certutil")
-        .args(["-user", "-addstore", "Root", cert_path])
+    let command = format!(
+        "Import-Certificate -FilePath '{}' -CertStoreLocation Cert:\\CurrentUser\\Root",
+        cert_path.replace('\'', "''")
+    );
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &command])
         .creation_flags(CREATE_NO_WINDOW)
         .output();
 
@@ -288,9 +296,11 @@ fn install_windows(cert_path: &str) -> TrustResult {
         },
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+            let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+            let detail = if !stderr.is_empty() { stderr } else { stdout };
             TrustResult {
                 success: false,
-                message: format!("certutil failed: {}", stderr.trim()),
+                message: format!("Import-Certificate failed: {}", detail.trim()),
                 firefox_note: firefox_note(),
                 manual_steps: windows_manual_steps(cert_path),
                 cert_info: CertInfo::default(),
@@ -298,7 +308,7 @@ fn install_windows(cert_path: &str) -> TrustResult {
         }
         Err(e) => TrustResult {
             success: false,
-            message: format!("Could not run certutil: {}", e),
+            message: format!("Could not run PowerShell: {}", e),
             firefox_note: firefox_note(),
             manual_steps: windows_manual_steps(cert_path),
             cert_info: CertInfo::default(),

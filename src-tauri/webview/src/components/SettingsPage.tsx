@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getVersion } from '@tauri-apps/api/app';
 import { CertificateManager } from './CertificateManager';
 import { tokens } from '../styles/tokens';
 
@@ -6,6 +7,11 @@ export function SettingsPage() {
   const [httpsEnabled, setHttpsEnabled] = useState(true);
   const [trustCertificate, setTrustCertificate] = useState(false);
   const [defaultPort, setDefaultPort] = useState(8888);
+  const [appVersion, setAppVersion] = useState<string>('...');
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => setAppVersion('unknown'));
+  }, []);
 
   return (
     <div style={{ padding: '20px', maxWidth: '800px' }}>
@@ -119,14 +125,16 @@ export function SettingsPage() {
         </h3>
         
         <div style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary, lineHeight: '1.6' }}>
-          <p style={{ margin: '0 0 12px 0' }}>
-            <strong>Version:</strong> 0.1.0
+          <p style={{ margin: '0 0 8px 0' }}>
+            <strong>Version:</strong> {appVersion}
           </p>
-          <p style={{ margin: '0 0 12px 0' }}>
-            <strong>Platform:</strong> Tauri Desktop Application
+          <p style={{ margin: '0 0 8px 0' }}>
+            <strong>Platform:</strong> Tauri 2 · Rust · React
           </p>
           <p style={{ margin: '0' }}>
-            HTTP/HTTPS Proxy and Mock Server for API Testing and Debugging
+            Desktop HTTP/HTTPS proxy and mock server for API testing and debugging.
+            Supports traffic inspection, HTTPS interception, mock rules, replace rules,
+            breakpoints, and file watching.
           </p>
         </div>
       </div>
