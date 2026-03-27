@@ -220,6 +220,17 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
     return () => ro.disconnect();
   }, [view]);
 
+  const requestLang = getLanguage(log.requestHeaders);
+  const responseLang = getLanguage(log.responseHeaders);
+  const displayPath = extractPath(log.url);
+  const ss = statusStyle(log.status);
+  const reqCT = getContentType(log.requestHeaders);
+  const resCT = getContentType(log.responseHeaders);
+
+  // Format bodies eagerly — XML/JSON arrive minified from the backend
+  const formattedRequest  = formatBody(log.requestBody,  requestLang);
+  const formattedResponse = formatBody(log.responseBody, responseLang);
+
   // Natural request-pane height (mirrors FileWatcherPage logic)
   const LINE_HEIGHT = 19;
   const PANE_OVERHEAD = 101;
@@ -246,17 +257,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [effectivePx, bodyHeight]);
-
-  const requestLang = getLanguage(log.requestHeaders);
-  const responseLang = getLanguage(log.responseHeaders);
-  const displayPath = extractPath(log.url);
-  const ss = statusStyle(log.status);
-  const reqCT = getContentType(log.requestHeaders);
-  const resCT = getContentType(log.responseHeaders);
-
-  // Format bodies eagerly — XML/JSON arrive minified from the backend
-  const formattedRequest  = formatBody(log.requestBody,  requestLang);
-  const formattedResponse = formatBody(log.responseBody, responseLang);
 
   return (
     <Panel>
