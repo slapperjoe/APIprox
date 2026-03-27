@@ -86,6 +86,25 @@ pub async fn clear_system_proxy(_state: State<'_, AppState>) -> Result<(), Strin
     }
 }
 
+/// Synchronous best-effort cleanup called when the application window closes.
+/// Clears the OS system proxy so traffic is not left routing through a dead port.
+/// Must not panic — errors are only logged.
+pub fn clear_on_exit() {
+    #[cfg(target_os = "windows")]
+    {
+        if let Err(e) = clear_proxy_windows() {
+            log::warn!("[Sniffer] Failed to clear system proxy on exit (Windows): {}", e);
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Err(e) = clear_proxy_macos() {
+            log::warn!("[Sniffer] Failed to clear system proxy on exit (macOS): {}", e);
+        }
+    }
+    // On other platforms there is nothing to undo.
+}
+
 // ── macOS implementation ────────────────────────────────────────────────────
 
 #[cfg(target_os = "macos")]

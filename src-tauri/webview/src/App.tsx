@@ -4,6 +4,7 @@ import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
 import { ServerControl } from './components/ServerControl';
 import { TrafficViewer } from './components/TrafficViewer';
+import { TrafficDetails } from './components/TrafficDetails';
 import { RulesPage } from './components/RulesPage';
 import { MockRulesPage } from './components/MockRulesPage';
 import { BreakpointsPage } from './components/BreakpointsPage';
@@ -205,37 +206,41 @@ function App() {
           </div>
 
         {activeTab === 'traffic' && (
-          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ flex: 1, minHeight: 0 }}>
-              <TrafficViewer 
-                logs={trafficLogs} 
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+            {/* Left sidebar — traffic list */}
+            <div style={{
+              width: '360px',
+              flexShrink: 0,
+              borderRight: `1px solid ${tokens.border.default}`,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              <TrafficViewer
+                logs={trafficLogs}
                 onSelectLog={setSelectedLog}
               />
             </div>
-            
-            {selectedLog && (
-              <div style={{
-                padding: tokens.space['6'],
-                background: tokens.surface.panel,
-                borderTop: `1px solid ${tokens.border.default}`,
-                maxHeight: '300px',
-                overflow: 'auto'
-              }}>
-                <h3 style={{ margin: `0 0 ${tokens.space['4']} 0`, fontSize: tokens.fontSize.lg }}>
-                  Request Details
-                </h3>
-                <pre style={{
-                  background: tokens.surface.base,
-                  padding: tokens.space['4'],
-                  borderRadius: tokens.radius.md,
-                  fontSize: tokens.fontSize.sm,
-                  overflow: 'auto',
-                  margin: 0
-                }}>
-                  {JSON.stringify(selectedLog, null, 2)}
-                </pre>
-              </div>
-            )}
+
+            {/* Right — request/response detail */}
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {selectedLog
+                ? <TrafficDetails log={selectedLog} />
+                : (
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: tokens.text.muted,
+                    fontSize: tokens.fontSize.base,
+                    fontStyle: 'italic',
+                  }}>
+                    Select a request to inspect
+                  </div>
+                )
+              }
+            </div>
           </div>
         )}
 

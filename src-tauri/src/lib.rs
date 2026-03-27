@@ -158,6 +158,13 @@ pub fn run() {
             commands::sniffer::set_system_proxy,
             commands::sniffer::clear_system_proxy,
         ])
+        .on_window_event(|_window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                // Clear the OS system proxy so traffic isn't left routing through
+                // a dead port after the app exits.
+                commands::sniffer::clear_on_exit();
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

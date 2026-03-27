@@ -28,8 +28,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
       display: 'flex',
       flexDirection: 'column',
       background: tokens.surface.panel,
-      borderTop: `1px solid ${tokens.border.default}`,
-      height: '400px'
+      height: '100%'
     }}>
       {/* Tab Bar */}
       <div style={{

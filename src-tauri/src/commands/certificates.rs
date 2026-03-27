@@ -271,13 +271,19 @@ fn remove_windows() -> TrustResult {
 
 #[cfg(target_os = "windows")]
 fn install_windows(cert_path: &str) -> TrustResult {
-    // Use PowerShell's Import-Certificate — no certutil dialogs or exit-code ambiguity.
-    // Import-Certificate adds to CurrentUser\Root without requiring elevation.
+    // Import-Certificate triggers a UI confirmation dialog for CurrentUser\Root, which
+    // fails when running non-interactively. Use the .NET X509Store API instead — it
+    // adds to CurrentUser\Root silently with no dialog and no elevation required.
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let command = format!(
-        "Import-Certificate -FilePath '{}' -CertStoreLocation Cert:\\CurrentUser\\Root",
-        cert_path.replace('\'', "''")
+        "\
+        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2('{path}'); \
+        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root', 'CurrentUser'); \
+        $store.Open('ReadWrite'); \
+        $store.Add($cert); \
+        $store.Close()",
+        path = cert_path.replace('\'', "''")
     );
     let output = std::process::Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", &command])
@@ -300,7 +306,7 @@ fn install_windows(cert_path: &str) -> TrustResult {
             let detail = if !stderr.is_empty() { stderr } else { stdout };
             TrustResult {
                 success: false,
-                message: format!("Import-Certificate failed: {}", detail.trim()),
+                message: format!("X509Store add failed: {}", detail.trim()),
                 firefox_note: firefox_note(),
                 manual_steps: windows_manual_steps(cert_path),
                 cert_info: CertInfo::default(),

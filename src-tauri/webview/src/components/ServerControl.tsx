@@ -95,7 +95,10 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
     try {
       // Map sniffer modes to the underlying proxy mode
       const backendMode = mode === 'sniffer' ? 'proxy' : mode === 'sniffer-mock' ? 'both' : mode;
-      await bridge.startProxy({ port: proxyPort, mode: backendMode, targetUrl });
+      // In sniffer mode there is no fixed target — each request is forwarded to its
+      // own destination. Pass an empty targetUrl so the backend uses the request URI.
+      const effectiveTargetUrl = isSniffer ? '' : targetUrl;
+      await bridge.startProxy({ port: proxyPort, mode: backendMode, targetUrl: effectiveTargetUrl });
       setProxyEnabled(true);
       onStatusChange?.({ running: true, port: proxyPort, mode });
 
@@ -198,17 +201,18 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
         Proxy Server Control
       </h2>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* Mode Selection — first, as it controls what else is shown */}
-        <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
-            Mode
-          </label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Main controls — all in one row */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Mode dropdown */}
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as ProxyMode)}
             disabled={proxyEnabled || loading}
+            title="Mode"
             style={{
+              flexShrink: 0,
+              width: '190px',
               padding: '8px 12px',
               background: tokens.surface.input,
               border: `1px solid ${tokens.border.subtle}`,
@@ -223,27 +227,18 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             <option value="sniffer">Sniffer (System Proxy)</option>
             <option value="sniffer-mock">Sniffer + Mock</option>
           </select>
-          {isSniffer && (
-            <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted, marginTop: '6px' }}>
-              Starts the proxy server and automatically sets the OS system proxy — all HTTP/HTTPS traffic is captured.
-            </div>
-          )}
-        </div>
 
-        {/* Target URL — hidden in sniffer mode (system proxy routes by request destination) */}
-        {!isSniffer && (
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
-              Target URL
-            </label>
+          {/* Target URL — hidden in sniffer mode (system proxy routes by request destination) */}
+          {!isSniffer && (
             <input
               type="text"
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
               disabled={proxyEnabled || loading}
-              placeholder="http://localhost:3000"
+              placeholder="Target URL (e.g. http://localhost:3000)"
+              title="Upstream server to forward requests to"
               style={{
-                width: '100%',
+                flex: 1,
                 padding: '8px 12px',
                 background: tokens.surface.input,
                 border: `1px solid ${tokens.border.subtle}`,
@@ -252,24 +247,18 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
                 fontSize: tokens.fontSize.base,
               }}
             />
-            <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted, marginTop: '4px' }}>
-              The upstream server to forward requests to (e.g., http://localhost:8080, https://api.example.com)
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Port */}
-        <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
-            Port
-          </label>
+          {/* Port */}
           <input
             type="number"
             value={proxyPort}
             onChange={(e) => setProxyPort(parseInt(e.target.value))}
             disabled={proxyEnabled || loading}
+            title="Proxy port"
             style={{
-              width: '100px',
+              flexShrink: 0,
+              width: '90px',
               padding: '8px 12px',
               background: tokens.surface.input,
               border: `1px solid ${tokens.border.subtle}`,
@@ -278,16 +267,15 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
               fontSize: tokens.fontSize.base,
             }}
           />
-        </div>
 
-        {/* Start / Stop */}
-        <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+          {/* Start / Stop */}
           {!proxyEnabled ? (
             <button
               onClick={handleStart}
               disabled={loading}
               style={{
-                padding: '10px 24px',
+                flexShrink: 0,
+                padding: '8px 20px',
                 background: tokens.status.accentDark,
                 border: 'none',
                 borderRadius: tokens.radius.md,
@@ -305,7 +293,8 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
               onClick={handleStop}
               disabled={loading}
               style={{
-                padding: '10px 24px',
+                flexShrink: 0,
+                padding: '8px 20px',
                 background: '#c5000b',
                 border: 'none',
                 borderRadius: tokens.radius.md,
@@ -320,6 +309,13 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
             </button>
           )}
         </div>
+
+        {/* Sniffer mode hint */}
+        {isSniffer && (
+          <div style={{ fontSize: tokens.fontSize.xs, color: tokens.text.muted }}>
+            In sniffer mode the OS system proxy is set automatically — all HTTP/HTTPS traffic is captured without a fixed target URL.
+          </div>
+        )}
 
         {/* Running status banner */}
         {proxyEnabled && (
