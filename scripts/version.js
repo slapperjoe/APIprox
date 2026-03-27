@@ -13,7 +13,7 @@
  */
 
 // ─── BUILD NUMBER (auto-managed — do not edit manually) ───────────────────
-const BUILD_NO = 39;
+const BUILD_NO = 40;
 // ─────────────────────────────────────────────────────────────────────────
 
 import fs from 'fs';
