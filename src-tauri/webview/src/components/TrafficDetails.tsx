@@ -4,6 +4,8 @@ import {
   MonacoRequestEditorWithToolbar,
   MonacoResponseViewer,
   DEFAULT_EDITOR_SETTINGS,
+  formatXml,
+  formatJson,
 } from '@apinox/request-editor';
 import type { EditorSettings } from '@apinox/request-editor';
 import { TrafficLog } from '../types';
@@ -51,6 +53,13 @@ function getLanguage(headers?: Record<string, string>): string {
   if (ct.includes('json')) return 'json';
   if (ct.includes('html')) return 'html';
   return 'text';
+}
+
+function formatBody(content: string | undefined, language: string): string {
+  if (!content) return '';
+  if (language === 'xml')  return formatXml(content);
+  if (language === 'json') return formatJson(content);
+  return content;
 }
 
 function extractPath(url: string): string {
@@ -214,7 +223,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
   // Natural request-pane height (mirrors FileWatcherPage logic)
   const LINE_HEIGHT = 19;
   const PANE_OVERHEAD = 101;
-  const reqLineCount = log.requestBody ? log.requestBody.split('\n').length : 0;
+  const reqLineCount = formattedRequest ? formattedRequest.split('\n').length : 0;
   const naturalPx = (reqLineCount + 3) * LINE_HEIGHT + PANE_OVERHEAD;
   const calculatedPx = bodyHeight > 0 ? Math.min(naturalPx, bodyHeight * 0.5) : undefined;
   const effectivePx = userRequestPx ?? calculatedPx;
@@ -245,6 +254,10 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
   const reqCT = getContentType(log.requestHeaders);
   const resCT = getContentType(log.responseHeaders);
 
+  // Format bodies eagerly — XML/JSON arrive minified from the backend
+  const formattedRequest  = formatBody(log.requestBody,  requestLang);
+  const formattedResponse = formatBody(log.responseBody, responseLang);
+
   return (
     <Panel>
       <DetailHeader>
@@ -268,7 +281,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
               <PaneLabel>Request</PaneLabel>
               {reqCT && <PaneMeta>{reqCT}</PaneMeta>}
               <MonacoRequestEditorWithToolbar
-                value={log.requestBody || ''}
+                value={formattedRequest}
                 onChange={() => {}}
                 language={requestLang}
                 readOnly
@@ -281,7 +294,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
               <PaneLabel>Response</PaneLabel>
               {resCT && <PaneMeta>{resCT}</PaneMeta>}
               <MonacoResponseViewer
-                value={log.responseBody || ''}
+                value={formattedResponse}
                 language={responseLang}
                 showLineNumbers={editorSettings.showLineNumbers}
                 showMinimap={editorSettings.showMinimap}
