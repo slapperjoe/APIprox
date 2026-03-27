@@ -1,131 +1,343 @@
-import React, { useState } from 'react';
-import { MonacoResponseViewer } from '@apinox/request-editor';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import styled from 'styled-components';
+import {
+  MonacoRequestEditorWithToolbar,
+  MonacoResponseViewer,
+  DEFAULT_EDITOR_SETTINGS,
+} from '@apinox/request-editor';
+import type { EditorSettings } from '@apinox/request-editor';
 import { TrafficLog } from '../types';
 import { tokens } from '../styles/tokens';
 
+// ── Types ──────────────────────────────────────────────────────────────────
+type DetailView = 'body' | 'headers' | 'raw';
+
+// ── Editor settings (shared key with FileWatcherPage) ──────────────────────
+const EDITOR_SETTINGS_KEY = 'apiprox-editor-settings';
+const loadEditorSettings = (): EditorSettings => {
+  try {
+    const raw = localStorage.getItem(EDITOR_SETTINGS_KEY);
+    if (raw) return { ...DEFAULT_EDITOR_SETTINGS, ...JSON.parse(raw) };
+  } catch {}
+  return DEFAULT_EDITOR_SETTINGS;
+};
+const saveEditorSettings = (s: EditorSettings) => {
+  try { localStorage.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(s)); } catch {}
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function methodBg(method: string): string {
+  switch (method.toUpperCase()) {
+    case 'GET':    return '#1a5c2a';
+    case 'POST':   return '#1a3d5c';
+    case 'PUT':    return '#5c4a1a';
+    case 'PATCH':  return '#3d1a5c';
+    case 'DELETE': return '#5c1a1a';
+    default:       return '#3a3a3a';
+  }
+}
+
+function statusStyle(status?: number) {
+  if (!status) return { bg: 'rgba(60,60,60,0.2)', fg: tokens.text.muted, border: 'rgba(100,100,100,0.4)' };
+  if (status < 300) return { bg: 'rgba(58,110,58,0.25)',  fg: '#89d185', border: 'rgba(58,110,58,0.5)' };
+  if (status < 400) return { bg: 'rgba(14,99,156,0.25)',  fg: '#6db3e8', border: 'rgba(14,99,156,0.5)' };
+  if (status < 500) return { bg: 'rgba(122,90,30,0.25)',  fg: '#ddb165', border: 'rgba(122,90,30,0.5)' };
+  return                     { bg: 'rgba(156,14,14,0.25)', fg: '#f28b82', border: 'rgba(156,14,14,0.5)' };
+}
+
+function getLanguage(headers?: Record<string, string>): string {
+  const ct = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
+  if (ct.includes('xml') || ct.includes('soap')) return 'xml';
+  if (ct.includes('json')) return 'json';
+  if (ct.includes('html')) return 'html';
+  return 'text';
+}
+
+function extractPath(url: string): string {
+  try { const u = new URL(url); return u.pathname + u.search; } catch { return url; }
+}
+
+function getContentType(headers?: Record<string, string>): string | undefined {
+  return headers?.['content-type'] ?? headers?.['Content-Type'];
+}
+
+// ── Styled components (mirrors FileWatcherPage) ────────────────────────────
+const Panel = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  background: ${tokens.surface.base};
+`;
+
+const DetailHeader = styled.div`
+  padding: 8px 14px;
+  border-bottom: 1px solid ${tokens.border.default};
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: ${tokens.surface.panel};
+  flex-shrink: 0;
+`;
+
+const MethodBadge = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-family: monospace;
+  flex-shrink: 0;
+  color: white;
+`;
+
+const UrlText = styled.div`
+  flex: 1;
+  font-size: 12px;
+  color: ${tokens.text.primary};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: monospace;
+  min-width: 0;
+`;
+
+const StatusChip = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+`;
+
+const DurationText = styled.span`
+  font-size: 11px;
+  color: ${tokens.text.muted};
+  flex-shrink: 0;
+  white-space: nowrap;
+`;
+
+const ViewTab = styled.button<{ $active: boolean }>`
+  padding: 2px 9px;
+  border: 1px solid ${p => p.$active ? tokens.status.accentDark : tokens.border.subtle};
+  border-radius: 3px;
+  background: ${p => p.$active ? tokens.status.accentDark : 'transparent'};
+  color: ${p => p.$active ? 'white' : tokens.text.secondary};
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1.6;
+  &:hover { background: ${p => p.$active ? tokens.status.accentHover : tokens.surface.hover}; }
+`;
+
+const DetailBody = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const EditorPane = styled.div`
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-bottom: 1px solid ${tokens.border.default};
+  &:last-child { border-bottom: none; }
+`;
+
+const SplitDivider = styled.div<{ $dragging: boolean }>`
+  height: 5px;
+  background: ${p => p.$dragging ? tokens.status.accentDark : tokens.surface.elevated};
+  cursor: ns-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  user-select: none;
+  &:hover { background: ${tokens.status.accentDark}; }
+`;
+
+const PaneLabel = styled.div`
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: ${tokens.text.secondary};
+  background: ${tokens.surface.panel};
+  border-bottom: 1px solid ${tokens.border.default};
+  flex-shrink: 0;
+`;
+
+const PaneMeta = styled.div`
+  padding: 2px 14px;
+  font-size: 10px;
+  color: ${tokens.text.hint};
+  background: ${tokens.surface.panel};
+  border-bottom: 1px solid ${tokens.border.default};
+  flex-shrink: 0;
+`;
+
+const HeadersPane = styled.div`
+  flex: 1;
+  overflow: auto;
+  padding: 14px;
+`;
+
+// ── Component ─────────────────────────────────────────────────────────────
 interface TrafficDetailsProps {
   log: TrafficLog;
 }
 
-type DetailTab = 'request' | 'response' | 'headers' | 'raw';
-
 export function TrafficDetails({ log }: TrafficDetailsProps) {
-  const [activeTab, setActiveTab] = useState<DetailTab>('response');
+  const [view, setView] = useState<DetailView>('body');
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(loadEditorSettings);
+  const [isDragging, setIsDragging] = useState(false);
+  const [userRequestPx, setUserRequestPx] = useState<number | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [bodyHeight, setBodyHeight] = useState(0);
 
-  const getLanguage = (contentType?: string): string => {
-    if (!contentType) return 'text';
-    if (contentType.includes('xml') || contentType.includes('soap')) return 'xml';
-    if (contentType.includes('json')) return 'json';
-    if (contentType.includes('html')) return 'html';
-    return 'text';
-  };
+  const handleSettingsChange = useCallback((s: EditorSettings) => {
+    setEditorSettings(s);
+    saveEditorSettings(s);
+  }, []);
 
-  const requestLanguage = getLanguage(log.requestHeaders?.['content-type'] || log.requestHeaders?.['Content-Type']);
-  const responseLanguage = getLanguage(log.responseHeaders?.['content-type'] || log.responseHeaders?.['Content-Type']);
+  // Reset split when switching to a different log entry
+  useEffect(() => { setUserRequestPx(null); }, [log.id]);
+
+  // Measure body height; keep live with ResizeObserver
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) { setBodyHeight(0); return; }
+    setBodyHeight(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(() => setBodyHeight(el.getBoundingClientRect().height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [view]);
+
+  // Natural request-pane height (mirrors FileWatcherPage logic)
+  const LINE_HEIGHT = 19;
+  const PANE_OVERHEAD = 101;
+  const reqLineCount = log.requestBody ? log.requestBody.split('\n').length : 0;
+  const naturalPx = (reqLineCount + 3) * LINE_HEIGHT + PANE_OVERHEAD;
+  const calculatedPx = bodyHeight > 0 ? Math.min(naturalPx, bodyHeight * 0.5) : undefined;
+  const effectivePx = userRequestPx ?? calculatedPx;
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startPx = effectivePx ?? 0;
+    setIsDragging(true);
+    const onMove = (ev: MouseEvent) => {
+      const min = 60;
+      const max = bodyHeight > 0 ? bodyHeight * 0.85 : 9999;
+      setUserRequestPx(Math.max(min, Math.min(startPx + (ev.clientY - startY), max)));
+    };
+    const onUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [effectivePx, bodyHeight]);
+
+  const requestLang = getLanguage(log.requestHeaders);
+  const responseLang = getLanguage(log.responseHeaders);
+  const displayPath = extractPath(log.url);
+  const ss = statusStyle(log.status);
+  const reqCT = getContentType(log.requestHeaders);
+  const resCT = getContentType(log.responseHeaders);
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      background: tokens.surface.panel,
-      height: '100%'
-    }}>
-      {/* Tab Bar */}
-      <div style={{
-        display: 'flex',
-        gap: '4px',
-        padding: '8px 12px',
-        background: tokens.surface.elevated,
-        borderBottom: `1px solid ${tokens.border.default}`
-      }}>
-        {(['request', 'response', 'headers', 'raw'] as DetailTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              padding: '6px 12px',
-              background: activeTab === tab ? tokens.status.accent : 'transparent',
-              border: 'none',
-              borderRadius: tokens.radius.sm,
-              color: activeTab === tab ? tokens.text.white : tokens.text.secondary,
-              fontSize: tokens.fontSize.sm,
-              cursor: 'pointer',
-              textTransform: 'capitalize',
-              transition: 'background 0.2s'
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+    <Panel>
+      <DetailHeader>
+        <MethodBadge style={{ background: methodBg(log.method) }}>{log.method}</MethodBadge>
+        <UrlText title={log.url}>{displayPath}</UrlText>
+        {log.status != null && (
+          <StatusChip style={{ background: ss.bg, color: ss.fg, border: `1px solid ${ss.border}` }}>
+            {log.status}
+          </StatusChip>
+        )}
+        {log.duration != null && <DurationText>{log.duration}ms</DurationText>}
+        <ViewTab $active={view === 'body'}    onClick={() => setView('body')}>Body</ViewTab>
+        <ViewTab $active={view === 'headers'} onClick={() => setView('headers')}>Headers</ViewTab>
+        <ViewTab $active={view === 'raw'}     onClick={() => setView('raw')}>Raw</ViewTab>
+      </DetailHeader>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        {activeTab === 'request' && (
-          <MonacoResponseViewer
-            value={log.requestBody || '(empty)'}
-            language={requestLanguage}
-          />
+      <DetailBody ref={bodyRef}>
+        {view === 'body' && (
+          <>
+            <EditorPane style={effectivePx !== undefined ? { flex: `0 0 ${effectivePx}px` } : { flex: 1 }}>
+              <PaneLabel>Request</PaneLabel>
+              {reqCT && <PaneMeta>{reqCT}</PaneMeta>}
+              <MonacoRequestEditorWithToolbar
+                value={log.requestBody || ''}
+                onChange={() => {}}
+                language={requestLang}
+                readOnly
+                initialSettings={editorSettings}
+                onSettingsChange={handleSettingsChange}
+              />
+            </EditorPane>
+            <SplitDivider $dragging={isDragging} onMouseDown={handleDividerMouseDown} />
+            <EditorPane style={{ flex: 1, minHeight: 0 }}>
+              <PaneLabel>Response</PaneLabel>
+              {resCT && <PaneMeta>{resCT}</PaneMeta>}
+              <MonacoResponseViewer
+                value={log.responseBody || ''}
+                language={responseLang}
+                showLineNumbers={editorSettings.showLineNumbers}
+                showMinimap={editorSettings.showMinimap}
+                fontSize={editorSettings.fontSize}
+                fontFamily={editorSettings.fontFamily}
+              />
+            </EditorPane>
+          </>
         )}
 
-        {activeTab === 'response' && (
-          <MonacoResponseViewer
-            value={log.responseBody || '(empty)'}
-            language={responseLanguage}
-          />
+        {view === 'headers' && (
+          <HeadersPane>
+            <HeaderSection title="Request Headers" headers={log.requestHeaders} />
+            <div style={{ height: 16 }} />
+            <HeaderSection title="Response Headers" headers={log.responseHeaders} />
+          </HeadersPane>
         )}
 
-        {activeTab === 'headers' && (
-          <div style={{ padding: '16px', overflow: 'auto', height: '100%' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <h4 style={{ fontSize: tokens.fontSize.base, color: tokens.syntax.request, marginBottom: '8px', fontWeight: 600 }}>
-                Request Headers
-              </h4>
-              {log.requestHeaders && Object.keys(log.requestHeaders).length > 0 ? (
-                <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    {Object.entries(log.requestHeaders).map(([key, value]) => (
-                      <tr key={key} style={{ borderBottom: `1px solid ${tokens.border.default}` }}>
-                        <td style={{ padding: '6px 8px', color: tokens.syntax.param, fontWeight: 500, width: '200px' }}>{key}</td>
-                        <td style={{ padding: '6px 8px', color: tokens.text.primary, wordBreak: 'break-all' }}>{String(value)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div style={{ color: tokens.text.muted, fontSize: tokens.fontSize.sm, fontStyle: 'italic' }}>No request headers</div>
-              )}
-            </div>
-
-            <div>
-              <h4 style={{ fontSize: tokens.fontSize.base, color: tokens.syntax.request, marginBottom: '8px', fontWeight: 600 }}>
-                Response Headers
-              </h4>
-              {log.responseHeaders && Object.keys(log.responseHeaders).length > 0 ? (
-                <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    {Object.entries(log.responseHeaders).map(([key, value]) => (
-                      <tr key={key} style={{ borderBottom: `1px solid ${tokens.border.default}` }}>
-                        <td style={{ padding: '6px 8px', color: tokens.syntax.param, fontWeight: 500, width: '200px' }}>{key}</td>
-                        <td style={{ padding: '6px 8px', color: tokens.text.primary, wordBreak: 'break-all' }}>{String(value)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div style={{ color: tokens.text.muted, fontSize: tokens.fontSize.sm, fontStyle: 'italic' }}>No response headers</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'raw' && (
+        {view === 'raw' && (
           <MonacoResponseViewer
             value={JSON.stringify(log, null, 2)}
             language="json"
+            showLineNumbers={editorSettings.showLineNumbers}
+            showMinimap={editorSettings.showMinimap}
+            fontSize={editorSettings.fontSize}
+            fontFamily={editorSettings.fontFamily}
           />
         )}
-      </div>
+      </DetailBody>
+    </Panel>
+  );
+}
+
+// ── HeaderSection subcomponent ─────────────────────────────────────────────
+function HeaderSection({ title, headers }: { title: string; headers?: Record<string, string> }) {
+  const entries = Object.entries(headers ?? {});
+  return (
+    <div>
+      <div style={{
+        fontSize: 12, fontWeight: 600, color: tokens.text.secondary,
+        marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px',
+      }}>{title}</div>
+      {entries.length === 0 ? (
+        <div style={{ fontSize: 12, color: tokens.text.muted, fontStyle: 'italic' }}>None</div>
+      ) : (
+        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+          <tbody>
+            {entries.map(([k, v]) => (
+              <tr key={k}>
+                <td style={{ padding: '5px 8px', color: tokens.syntax.param, fontWeight: 500, width: 200, borderBottom: `1px solid ${tokens.surface.elevated}`, whiteSpace: 'nowrap' }}>{k}</td>
+                <td style={{ padding: '5px 8px', color: tokens.text.primary, wordBreak: 'break-all', borderBottom: `1px solid ${tokens.surface.elevated}` }}>{String(v)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

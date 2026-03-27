@@ -122,8 +122,8 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
         )}
       </div>
 
-      {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      {/* Traffic card list — no table, no horizontal scroll */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
         {filteredLogs.length === 0 ? (
           <div style={{
             display: 'flex',
@@ -139,79 +139,97 @@ export function TrafficViewer({ logs, onSelectLog }: TrafficViewerProps) {
             <div>{logs.length === 0 ? 'No traffic captured yet. Start the proxy to begin.' : 'No entries match the current filters.'}</div>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tokens.fontSize.sm }}>
-            <thead style={{
-              position: 'sticky',
-              top: 0,
-              background: tokens.surface.panel,
-              borderBottom: `1px solid ${tokens.border.default}`,
-              zIndex: 1,
-            }}>
-              <tr>
-                <th style={thStyle}>Time</th>
-                <th style={thStyle}>Method</th>
-                <th style={{ ...thStyle, width: '100%' }}>URL</th>
-                <th style={thStyle}>Status</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Duration</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.map((log) => (
-                <TrafficRow
-                  key={log.id}
-                  log={log}
-                  isSelected={selectedId === log.id}
-                  onClick={handleSelect}
-                />
-              ))}
-            </tbody>
-          </table>
+          filteredLogs.map((log) => (
+            <TrafficRow key={log.id} log={log} isSelected={selectedId === log.id} onClick={handleSelect} />
+          ))
         )}
       </div>
     </div>
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────
+function extractPath(url: string): string {
+  try { const u = new URL(url); return u.pathname + u.search; } catch { return url; }
+}
+
+function methodBg(method: string): string {
+  switch (method.toUpperCase()) {
+    case 'GET':    return '#1a5c2a';
+    case 'POST':   return '#1a3d5c';
+    case 'PUT':    return '#5c4a1a';
+    case 'PATCH':  return '#3d1a5c';
+    case 'DELETE': return '#5c1a1a';
+    default:       return '#3a3a3a';
+  }
+}
+
+function statusStyle(status?: number) {
+  if (!status) return { bg: 'rgba(60,60,60,0.2)', fg: tokens.text.muted, border: 'rgba(100,100,100,0.4)' };
+  if (status < 300) return { bg: 'rgba(58,110,58,0.25)',  fg: '#89d185', border: 'rgba(58,110,58,0.5)' };
+  if (status < 400) return { bg: 'rgba(14,99,156,0.25)',  fg: '#6db3e8', border: 'rgba(14,99,156,0.5)' };
+  if (status < 500) return { bg: 'rgba(122,90,30,0.25)',  fg: '#ddb165', border: 'rgba(122,90,30,0.5)' };
+  return                     { bg: 'rgba(156,14,14,0.25)', fg: '#f28b82', border: 'rgba(156,14,14,0.5)' };
+}
+
+// ── TrafficRow card ────────────────────────────────────────────────────────
 function TrafficRow({ log, isSelected, onClick }: { log: TrafficLog; isSelected: boolean; onClick: (l: TrafficLog) => void }) {
   const [hovered, setHovered] = useState(false);
+  const ss = statusStyle(log.status);
+  const path = extractPath(log.url);
   return (
-    <tr
+    <div
       onClick={() => onClick(log)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      title={log.url}
       style={{
+        padding: '8px 12px',
         cursor: 'pointer',
         background: isSelected ? tokens.surface.active : hovered ? tokens.surface.stripe : 'transparent',
         borderBottom: `1px solid ${tokens.surface.elevated}`,
       }}
     >
-      <td style={tdStyle}>{new Date(log.timestamp).toLocaleTimeString()}</td>
-      <td style={{ ...tdStyle, color: tokens.syntax.request, fontWeight: 600 }}>{log.method}</td>
-      <td style={{ ...tdStyle, maxWidth: '500px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.url}</td>
-      <td style={{ ...tdStyle, color: statusColor(log.status), fontWeight: 600 }}>{log.status ?? '—'}</td>
-      <td style={{ ...tdStyle, textAlign: 'right', color: tokens.text.muted }}>{log.duration != null ? `${log.duration}ms` : '—'}</td>
-    </tr>
+      {/* Line 1: method badge + path (no hostname) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '1px 6px',
+          borderRadius: 3, fontFamily: 'monospace', flexShrink: 0,
+          color: 'white', background: methodBg(log.method),
+        }}>
+          {log.method}
+        </span>
+        <span style={{
+          fontSize: tokens.fontSize.sm,
+          color: tokens.text.primary,
+          fontFamily: 'monospace',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          minWidth: 0,
+        }}>
+          {path}
+        </span>
+      </div>
+      {/* Line 2: time + status chip + duration */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ fontSize: 10, color: tokens.text.hint, flexShrink: 0 }}>
+          {new Date(log.timestamp).toLocaleTimeString()}
+        </span>
+        {log.status != null && (
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '1px 6px',
+            borderRadius: 8, flexShrink: 0,
+            background: ss.bg, color: ss.fg, border: `1px solid ${ss.border}`,
+          }}>
+            {log.status}
+          </span>
+        )}
+        {log.duration != null && (
+          <span style={{ fontSize: 10, color: tokens.text.muted }}>{log.duration}ms</span>
+        )}
+      </div>
+    </div>
   );
 }
-
-function statusColor(status?: number): string {
-  if (!status) return tokens.text.muted;
-  if (status < 300) return tokens.httpStatus.success;
-  if (status < 400) return tokens.httpStatus.redirect;
-  if (status < 500) return tokens.httpStatus.clientError;
-  return tokens.httpStatus.serverError;
-}
-
-const thStyle: React.CSSProperties = {
-  padding: '8px 10px',
-  textAlign: 'left',
-  fontWeight: 500,
-  color: tokens.text.secondary,
-  whiteSpace: 'nowrap',
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '7px 10px',
-  color: tokens.text.primary,
-};
 
