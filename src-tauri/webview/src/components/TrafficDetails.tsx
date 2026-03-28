@@ -288,8 +288,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
                 language={responseLang}
                 readOnly
                 headers={log.responseHeaders}
-                initialSettings={editorSettings}
-                onSettingsChange={handleSettingsChange}
               />
             </EditorPane>
           </>
