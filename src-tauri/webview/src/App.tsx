@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
+import { getVersion } from '@tauri-apps/api/app';
 import { platform } from '@tauri-apps/plugin-os';
 import { ServerControl } from './components/ServerControl';
 import { TrafficViewer } from './components/TrafficViewer';
@@ -44,6 +45,7 @@ function App() {
   const [pausedCount, setPausedCount] = useState(0);
   const [platformOS, setPlatformOS] = useState<string>('unknown');
   const [isFocused, setIsFocused] = useState(true);
+  const [appVersion, setAppVersion] = useState<string>('');
 
   // Taskbar attention: flash/bounce when breakpoints are held and window is not focused
   useEffect(() => {
@@ -67,27 +69,35 @@ function App() {
     } catch {
       // not in Tauri environment
     }
+    getVersion().then(v => setAppVersion(v)).catch(() => {});
   }, []);
 
-  // Keep native window title in sync with proxy status
+  // Keep native window title in sync with proxy status and version
   useEffect(() => {
     const appWindow = getCurrentWindow();
+    const ver = appVersion ? ` v${appVersion}` : '';
+    let title: string;
     if (proxyEnabled && proxyStatus) {
       const modeLabel = MODE_TITLE_LABELS[proxyStatus.mode] ?? proxyStatus.mode;
-      // macOS renders color emoji in the title bar; Windows/Linux do not
       if (platformOS === 'macos') {
-        appWindow.setTitle(`APIprox  [🟢 ${modeLabel} :${proxyStatus.port}]`);
+        title = `APIprox${ver}  [🟢 ${modeLabel} :${proxyStatus.port}]`;
       } else {
-        appWindow.setTitle(`APIprox  [▶ ${modeLabel} :${proxyStatus.port}]`);
+        title = `APIprox${ver}  [▶ ${modeLabel} :${proxyStatus.port}]`;
       }
     } else {
       if (platformOS === 'macos') {
-        appWindow.setTitle('APIprox  [🔴 Stopped]');
+        title = `APIprox${ver}  [🔴 Stopped]`;
       } else {
-        appWindow.setTitle('APIprox  [■ Stopped]');
+        title = `APIprox${ver}  [■ Stopped]`;
       }
     }
-  }, [proxyEnabled, proxyStatus, platformOS]);
+    // Set both: Tauri setTitle (Windows/macOS) and document.title (Linux/WebKit2GTK)
+    console.info('[APIprox] setTitle attempt:', title, 'platformOS:', platformOS);
+    document.title = title;
+    appWindow.setTitle(title)
+      .then(() => console.info('[APIprox] setTitle resolved OK'))
+      .catch((err) => console.error('[APIprox] setTitle failed:', err, 'title was:', title));
+  }, [proxyEnabled, proxyStatus, platformOS, appVersion]);
 
   useEffect(() => {
     const appWindow = getCurrentWindow();
@@ -174,6 +184,22 @@ function App() {
             }}
           >
             {TAB_LABELS[tab]}
+            {tab === 'breakpoints' && pausedCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '4px',
+                right: '4px',
+                background: tokens.status.error,
+                color: '#fff',
+                borderRadius: '50%',
+                width: '14px',
+                height: '14px',
+                fontSize: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>{pausedCount}</span>
+            )}
           </button>
         ))}
       </div>

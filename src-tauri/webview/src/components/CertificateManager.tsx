@@ -122,155 +122,148 @@ export function CertificateManager() {
   const expired = isExpired(certInfo?.validTo);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px' }}>
-      <h2 style={{ margin: '0 0 24px 0', fontSize: '18px', fontWeight: 500 }}>
-        Certificate Management
-      </h2>
+    <>
+      {/* Two-column: Status (left) | Actions (right) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 270px', gap: '16px', alignItems: 'start' }}>
 
-      {/* Status ------------------------------------------------------------ */}
-      <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px', marginBottom: '16px' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
-          CA Certificate Status
-        </h3>
+        {/* Status */}
+        <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
+            CA Certificate Status
+          </h3>
 
-        {certInfo?.exists ? (
-          <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {[
-                ['Subject', certInfo.subject],
-                ['Issuer', certInfo.issuer],
-                ['Valid From', formatDate(certInfo.validFrom)],
-                ['Valid To', formatDate(certInfo.validTo)],
-              ].map(([label, value]) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: tokens.text.muted, flexShrink: 0, marginRight: '16px' }}>{label}</span>
-                  <span style={{ color: label === 'Valid To' && expired ? '#bf6f6f' : tokens.text.secondary, textAlign: 'right' }}>
-                    {value ?? 'N/A'}
-                    {label === 'Valid To' && expired && ' ⚠ EXPIRED'}
-                  </span>
-                </div>
-              ))}
-
-              {certInfo.fingerprint && (
-                <div style={{ fontSize: '13px', marginTop: '4px' }}>
-                  <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>SHA-256 Fingerprint</div>
-                  <div style={{
-                    fontFamily: 'monospace',
-                    fontSize: '10px',
-                    color: tokens.text.secondary,
-                    wordBreak: 'break-all',
-                    background: tokens.surface.base,
-                    padding: '8px',
-                    borderRadius: '4px',
-                  }}>
-                    {certInfo.fingerprint}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div style={{
-              marginTop: '16px',
-              padding: '10px 12px',
-              background: expired ? '#3d1a1a' : certInfo.isTrusted ? '#1a2d3d' : '#1a3d1a',
-              border: `1px solid ${expired ? '#6a2d2d' : certInfo.isTrusted ? '#2d5a8a' : '#2d6a2d'}`,
-              borderRadius: '4px',
-              fontSize: '12px',
-              color: expired ? '#bf6f6f' : certInfo.isTrusted ? '#6f9fbf' : '#6fbf6f',
-            }}>
-              {expired
-                ? '⚠ Certificate has expired. Regenerate it.'
-                : certInfo.isTrusted
-                  ? '✓ Certificate is valid and trusted by this OS'
-                  : '✓ Certificate is valid — not yet installed in OS trust store'}
-            </div>
-          </>
-        ) : (
-          <div style={{
-            padding: '16px',
-            background: '#3d3d1a',
-            border: '1px solid #6a6a2d',
-            borderRadius: '4px',
-            fontSize: '13px',
-            color: '#d4d4a0',
-            textAlign: 'center',
-          }}>
-            No certificate found. Generate one to enable HTTPS inspection.
-          </div>
-        )}
-      </div>
-
-      {/* Actions ----------------------------------------------------------- */}
-      <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px', marginBottom: '16px' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
-          Actions
-        </h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <button onClick={handleGenerate} disabled={loading} style={btnStyle('#0e639c', loading)}>
-            {certInfo?.exists ? 'Regenerate Certificate' : 'Generate Certificate'}
-          </button>
-
-          {certInfo?.exists && (
+          {certInfo?.exists ? (
             <>
-              {certInfo.isTrusted ? (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '9px 18px',
-                  background: '#1a2d3d',
-                  border: '1px solid #2d5a8a',
-                  borderRadius: '4px',
-                  fontSize: '13px',
-                  color: '#6f9fbf',
-                }}>
-                  ✓ Trusted in OS store — Chrome, Safari & Edge will use it
-                  <button
-                    onClick={handleTrust}
-                    disabled={loading}
-                    style={{ ...btnStyle('#555', loading), padding: '2px 10px', fontSize: '11px', marginLeft: '8px' }}
-                  >
-                    Re-install
-                  </button>
-                  <button
-                    onClick={handleUntrust}
-                    disabled={loading}
-                    style={{ ...btnStyle('#7a2020', loading), padding: '2px 10px', fontSize: '11px' }}
-                  >
-                    Remove from Store
-                  </button>
-                </div>
-              ) : (
-                <button onClick={handleTrust} disabled={loading} style={btnStyle('#107c10', loading)}>
-                  Install to System Trust Store
-                </button>
-              )}
-              <button onClick={handleExport} disabled={loading} style={btnStyle('#5c2d91', loading)}>
-                Show Certificate Path
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[
+                  ['Subject', certInfo.subject],
+                  ['Issuer', certInfo.issuer],
+                  ['Valid From', formatDate(certInfo.validFrom)],
+                  ['Valid To', formatDate(certInfo.validTo)],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: tokens.text.muted, flexShrink: 0, marginRight: '16px' }}>{label}</span>
+                    <span style={{ color: label === 'Valid To' && expired ? '#bf6f6f' : tokens.text.secondary, textAlign: 'right' }}>
+                      {value ?? 'N/A'}
+                      {label === 'Valid To' && expired && ' ⚠ EXPIRED'}
+                    </span>
+                  </div>
+                ))}
+
+                {certInfo.fingerprint && (
+                  <div style={{ fontSize: '13px', marginTop: '4px' }}>
+                    <div style={{ color: tokens.text.muted, marginBottom: '4px' }}>SHA-256 Fingerprint</div>
+                    <div style={{
+                      fontFamily: 'monospace',
+                      fontSize: '10px',
+                      color: tokens.text.secondary,
+                      wordBreak: 'break-all',
+                      background: tokens.surface.base,
+                      padding: '8px',
+                      borderRadius: '4px',
+                    }}>
+                      {certInfo.fingerprint}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                marginTop: '16px',
+                padding: '10px 12px',
+                background: expired ? '#3d1a1a' : certInfo.isTrusted ? '#1a2d3d' : '#1a3d1a',
+                border: `1px solid ${expired ? '#6a2d2d' : certInfo.isTrusted ? '#2d5a8a' : '#2d6a2d'}`,
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: expired ? '#bf6f6f' : certInfo.isTrusted ? '#6f9fbf' : '#6fbf6f',
+              }}>
+                {expired
+                  ? '⚠ Certificate has expired. Regenerate it.'
+                  : certInfo.isTrusted
+                    ? '✓ Certificate is valid and trusted by this OS'
+                    : '✓ Certificate is valid — not yet installed in OS trust store'}
+              </div>
             </>
+          ) : (
+            <div style={{
+              padding: '16px',
+              background: '#3d3d1a',
+              border: '1px solid #6a6a2d',
+              borderRadius: '4px',
+              fontSize: '13px',
+              color: '#d4d4a0',
+              textAlign: 'center',
+            }}>
+              No certificate found. Generate one to enable HTTPS inspection.
+            </div>
           )}
         </div>
 
-        {genMessage && (
-          <div style={{
-            marginTop: '12px',
-            padding: '10px 12px',
-            background: genMessage.type === 'success' ? '#1a3d1a' : '#3d1a1a',
-            border: `1px solid ${genMessage.type === 'success' ? '#2d6a2d' : '#6a2d2d'}`,
-            borderRadius: '4px',
-            fontSize: '13px',
-            color: genMessage.type === 'success' ? '#6fbf6f' : '#bf6f6f',
-          }}>
-            {genMessage.type === 'success' ? '✓ ' : '✗ '}{genMessage.text}
+        {/* Actions */}
+        <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
+            Actions
+          </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button onClick={handleGenerate} disabled={loading} style={btnStyle('#0e639c', loading)}>
+              {certInfo?.exists ? 'Regenerate Certificate' : 'Generate Certificate'}
+            </button>
+
+            {certInfo?.exists && (
+              <>
+                {certInfo.isTrusted ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{
+                      padding: '9px 12px',
+                      background: '#1a2d3d',
+                      border: '1px solid #2d5a8a',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      color: '#6f9fbf',
+                    }}>
+                      ✓ Trusted in OS store
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={handleTrust} disabled={loading} style={{ ...btnStyle('#555', loading), flex: 1, padding: '6px', fontSize: '12px' }}>
+                        Re-install
+                      </button>
+                      <button onClick={handleUntrust} disabled={loading} style={{ ...btnStyle('#7a2020', loading), flex: 1, padding: '6px', fontSize: '12px' }}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={handleTrust} disabled={loading} style={btnStyle('#107c10', loading)}>
+                    Install to Trust Store
+                  </button>
+                )}
+                <button onClick={handleExport} disabled={loading} style={btnStyle('#5c2d91', loading)}>
+                  Show Certificate Path
+                </button>
+              </>
+            )}
           </div>
-        )}
+
+          {genMessage && (
+            <div style={{
+              marginTop: '12px',
+              padding: '10px 12px',
+              background: genMessage.type === 'success' ? '#1a3d1a' : '#3d1a1a',
+              border: `1px solid ${genMessage.type === 'success' ? '#2d6a2d' : '#6a2d2d'}`,
+              borderRadius: '4px',
+              fontSize: '12px',
+              color: genMessage.type === 'success' ? '#6fbf6f' : '#bf6f6f',
+            }}>
+              {genMessage.type === 'success' ? '✓ ' : '✗ '}{genMessage.text}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Trust result ------------------------------------------------------- */}
+      {/* Trust result — full width, conditional */}
       {trustResult && (
-        <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px', marginBottom: '16px' }}>
+        <div style={{ background: tokens.surface.panel, borderRadius: tokens.radius.lg, padding: '20px', marginTop: '16px' }}>
           <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: tokens.text.muted, letterSpacing: '0.05em' }}>
             Trust Installation Result
           </h3>
@@ -287,7 +280,6 @@ export function CertificateManager() {
             {trustResult.success ? '✓ ' : '✗ '}{trustResult.message}
           </div>
 
-          {/* Firefox note — always shown */}
           {trustResult.firefoxNote && (
             <div style={{
               padding: '10px 12px',
@@ -302,7 +294,6 @@ export function CertificateManager() {
             </div>
           )}
 
-          {/* Manual steps on failure */}
           {trustResult.manualSteps.length > 0 && (
             <div style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '12px', color: tokens.text.muted, marginBottom: '8px', fontWeight: 600 }}>
@@ -325,11 +316,12 @@ export function CertificateManager() {
         </div>
       )}
 
-      {/* Info box ---------------------------------------------------------- */}
+      {/* How it works info box */}
       <div style={{
         background: tokens.surface.base,
         borderRadius: tokens.radius.lg,
         padding: '16px',
+        marginTop: '16px',
         fontSize: '12px',
         color: tokens.text.muted,
         lineHeight: '1.7',
@@ -341,7 +333,7 @@ export function CertificateManager() {
           <li>Configure your HTTP client to use the proxy</li>
           <li>APIprox will sign per-domain certificates on the fly using this CA</li>
         </ol>
-          <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: `1px solid ${tokens.border.default}` }}>
+        <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: `1px solid ${tokens.border.default}` }}>
           <strong style={{ color: '#e8d44d' }}>Firefox note:</strong>{' '}
           Firefox maintains its own certificate store. You must import the CA manually
           via Preferences → Privacy & Security → Certificates → View Certificates → Authorities → Import.
@@ -353,9 +345,10 @@ export function CertificateManager() {
           </code>
         </div>
       </div>
-    </div>
+    </>
   );
 }
+
 
 function btnStyle(bg: string, disabled: boolean): React.CSSProperties {
   return {

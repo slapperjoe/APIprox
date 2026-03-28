@@ -8,136 +8,164 @@ export function SettingsPage() {
   const [trustCertificate, setTrustCertificate] = useState(false);
   const [defaultPort, setDefaultPort] = useState(8888);
   const [appVersion, setAppVersion] = useState<string>('...');
+  const [testStatus, setTestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => setAppVersion('unknown'));
   }, []);
 
+  async function sendTestRequests() {
+    setTestStatus('Sending...');
+    const requests = [
+      fetch('https://httpbin.org/get'),
+      fetch('https://httpbin.org/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test: true, from: 'APIprox' }),
+      }),
+      fetch('https://httpbin.org/status/404'),
+      fetch('https://httpbin.org/status/500'),
+      fetch('https://httpbin.org/delay/1'),
+    ];
+    const results = await Promise.allSettled(requests);
+    const ok = results.filter(r => r.status === 'fulfilled').length;
+    const fail = results.filter(r => r.status === 'rejected').length;
+    setTestStatus(`Done — ${ok} sent${fail > 0 ? `, ${fail} failed (may need HTTPS cert trust)` : ''}`);
+    setTimeout(() => setTestStatus(null), 6000);
+  }
+
+  const sectionStyle: React.CSSProperties = {
+    background: tokens.surface.panel,
+    borderRadius: tokens.radius.lg,
+    padding: '20px',
+    marginBottom: '16px',
+  };
+
+  const sectionHeadStyle: React.CSSProperties = {
+    margin: '0 0 16px 0',
+    fontSize: '14px',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    color: tokens.text.muted,
+    letterSpacing: '0.05em',
+  };
+
   return (
-    <div style={{ padding: '20px', maxWidth: '800px' }}>
-      <h2 style={{ margin: '0 0 24px 0', fontSize: '18px', fontWeight: 500 }}>
-        Settings
-      </h2>
+    <div style={{ padding: '20px' }}>
+      <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: 500 }}>Settings</h2>
 
-      {/* Certificate Management Section */}
-      <CertificateManager />
+      {/* Row 1: About + Default Port side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
 
-      {/* HTTPS Settings */}
-      <div style={{
-        background: tokens.surface.panel,
-        borderRadius: tokens.radius.lg,
-        padding: '20px',
-        marginBottom: '20px'
-      }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 500 }}>
-          HTTPS Configuration
-        </h3>
-        
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={httpsEnabled}
-              onChange={(e) => setHttpsEnabled(e.target.checked)}
-              style={{ width: '18px', height: '18px' }}
-            />
-            <div>
-              <div style={{ fontSize: '13px' }}>Enable HTTPS Interception</div>
-              <div style={{ fontSize: '12px', color: tokens.text.muted, marginTop: '4px' }}>
-                Allows proxying and modifying HTTPS traffic
-              </div>
+        <div style={sectionStyle}>
+          <h3 style={sectionHeadStyle}>About</h3>
+          <div style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary, lineHeight: '1.7' }}>
+            <div><span style={{ color: tokens.text.muted }}>Version</span> &nbsp; {appVersion}</div>
+            <div><span style={{ color: tokens.text.muted }}>Stack</span> &nbsp; Tauri 2 · Rust · React</div>
+            <div style={{ marginTop: '8px', fontSize: tokens.fontSize.sm, color: tokens.text.muted }}>
+              Desktop HTTP/HTTPS proxy and mock server for API testing and debugging.
             </div>
-          </label>
+          </div>
         </div>
 
-        {httpsEnabled && (
-          <div style={{ marginBottom: '16px', paddingLeft: '30px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={trustCertificate}
-                onChange={(e) => setTrustCertificate(e.target.checked)}
-                style={{ width: '18px', height: '18px' }}
-              />
-              <div>
-                <div style={{ fontSize: '13px' }}>Auto-trust generated certificates</div>
-                <div style={{ fontSize: '12px', color: tokens.text.muted, marginTop: '4px' }}>
-                  Automatically add APIprox CA certificate to system trust store
-                </div>
-              </div>
-            </label>
+        <div style={sectionStyle}>
+          <h3 style={sectionHeadStyle}>Default Port</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input
+              type="number"
+              value={defaultPort}
+              onChange={(e) => setDefaultPort(parseInt(e.target.value))}
+              style={{
+                width: '100px',
+                padding: '8px 12px',
+                background: tokens.surface.input,
+                border: `1px solid ${tokens.border.subtle}`,
+                borderRadius: tokens.radius.md,
+                color: tokens.text.secondary,
+                fontSize: tokens.fontSize.base,
+              }}
+            />
+            <span style={{ fontSize: tokens.fontSize.base, color: tokens.text.muted }}>
+              Default proxy port for new sessions
+            </span>
           </div>
-        )}
-
-        <div style={{
-          padding: '12px',
-          background: tokens.surface.base,
-          borderRadius: tokens.radius.md,
-          fontSize: '12px',
-          color: tokens.text.muted
-        }}>
-          <strong style={{ color: tokens.text.secondary }}>Note:</strong> HTTPS interception requires installing
-          a root certificate. This certificate will be automatically generated and can be exported
-          for manual installation if needed.
         </div>
       </div>
 
-      {/* Port Settings */}
-      <div style={{
-        background: tokens.surface.panel,
-        borderRadius: tokens.radius.lg,
-        padding: '20px',
-        marginBottom: '20px'
-      }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 500 }}>
-          Default Port
-        </h3>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* HTTPS Interception */}
+      <div style={sectionStyle}>
+        <h3 style={sectionHeadStyle}>HTTPS Interception</h3>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: '12px' }}>
           <input
-            type="number"
-            value={defaultPort}
-            onChange={(e) => setDefaultPort(parseInt(e.target.value))}
+            type="checkbox"
+            checked={httpsEnabled}
+            onChange={(e) => setHttpsEnabled(e.target.checked)}
+            style={{ width: '16px', height: '16px' }}
+          />
+          <div>
+            <div style={{ fontSize: tokens.fontSize.base }}>Enable HTTPS Interception</div>
+            <div style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginTop: '2px' }}>
+              Allows proxying and modifying HTTPS traffic via on-the-fly certificate signing
+            </div>
+          </div>
+        </label>
+
+        {httpsEnabled && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', paddingLeft: '28px' }}>
+            <input
+              type="checkbox"
+              checked={trustCertificate}
+              onChange={(e) => setTrustCertificate(e.target.checked)}
+              style={{ width: '16px', height: '16px' }}
+            />
+            <div>
+              <div style={{ fontSize: tokens.fontSize.base }}>Auto-trust generated certificates</div>
+              <div style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginTop: '2px' }}>
+                Automatically add APIprox CA to the system trust store after generation
+              </div>
+            </div>
+          </label>
+        )}
+      </div>
+
+      {/* Certificate Management */}
+      <div style={{ marginBottom: '16px' }}>
+        <h3 style={{ ...sectionHeadStyle, paddingLeft: '4px', marginBottom: '12px' }}>Certificate Management</h3>
+        <CertificateManager />
+      </div>
+
+      {/* Developer Tools */}
+      <div style={{ ...sectionStyle, marginBottom: 0 }}>
+        <h3 style={sectionHeadStyle}>Developer Tools</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button
+            onClick={sendTestRequests}
+            disabled={testStatus === 'Sending...'}
             style={{
-              width: '100px',
-              padding: '8px 12px',
+              padding: '7px 16px',
               background: tokens.surface.input,
               border: `1px solid ${tokens.border.subtle}`,
               borderRadius: tokens.radius.md,
               color: tokens.text.secondary,
-              fontSize: tokens.fontSize.base
+              fontSize: tokens.fontSize.sm,
+              cursor: testStatus === 'Sending...' ? 'wait' : 'pointer',
+              opacity: testStatus === 'Sending...' ? 0.7 : 1,
             }}
-          />
-          <span style={{ fontSize: tokens.fontSize.base, color: tokens.text.muted }}>
-            Default proxy port for new sessions
+          >
+            Send Test Requests
+          </button>
+          {testStatus && (
+            <span style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted }}>
+              {testStatus}
+            </span>
+          )}
+          <span style={{ fontSize: tokens.fontSize.xs, color: tokens.text.hint }}>
+            Fires 5 requests to httpbin.org — useful for testing sniffer/traffic capture
           </span>
-        </div>
-      </div>
-
-      {/* About */}
-      <div style={{
-        background: tokens.surface.panel,
-        borderRadius: tokens.radius.lg,
-        padding: '20px'
-      }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 500 }}>
-          About APIprox
-        </h3>
-        
-        <div style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary, lineHeight: '1.6' }}>
-          <p style={{ margin: '0 0 8px 0' }}>
-            <strong>Version:</strong> {appVersion}
-          </p>
-          <p style={{ margin: '0 0 8px 0' }}>
-            <strong>Platform:</strong> Tauri 2 · Rust · React
-          </p>
-          <p style={{ margin: '0' }}>
-            Desktop HTTP/HTTPS proxy and mock server for API testing and debugging.
-            Supports traffic inspection, HTTPS interception, mock rules, replace rules,
-            breakpoints, and file watching.
-          </p>
         </div>
       </div>
     </div>
   );
 }
+

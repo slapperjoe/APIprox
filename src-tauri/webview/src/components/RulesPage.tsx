@@ -288,7 +288,7 @@ export function RulesPage() {
                   <select
                     value={form.target}
                     onChange={e => setForm(f => ({ ...f, target: e.target.value as ReplaceRule['target'] }))}
-                    style={{ ...inputStyle, appearance: 'auto' }}
+                    style={{ ...inputStyle }}
                   >
                     <option value="both">Both</option>
                     <option value="request">Request</option>

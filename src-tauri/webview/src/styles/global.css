@@ -24,3 +24,18 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Normalise <select> across all platforms.
+   appearance:none removes the GTK/native widget on Linux that ignores background styles.
+   background-image !important is needed because inline `background:` shorthand resets
+   background-image to none — !important wins over inline to restore the caret arrow. */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0L5 6L10 0' fill='%23858585'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+  background-size: 10px 6px !important;
+  padding-right: 28px !important;
+  cursor: pointer;
+}

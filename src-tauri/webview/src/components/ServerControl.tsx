@@ -219,6 +219,8 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
               borderRadius: tokens.radius.md,
               color: tokens.text.secondary,
               fontSize: tokens.fontSize.base,
+              appearance: 'none',
+              WebkitAppearance: 'none',
             }}
           >
             <option value="proxy">Proxy Only</option>
