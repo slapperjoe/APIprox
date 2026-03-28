@@ -12,7 +12,7 @@ import { TrafficLog } from '../types';
 import { tokens } from '../styles/tokens';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type DetailView = 'body' | 'headers' | 'raw';
+type DetailView = 'body' | 'raw';
 
 // ── Editor settings (shared key with FileWatcherPage) ──────────────────────
 const EDITOR_SETTINGS_KEY = 'apiprox-editor-settings';
@@ -60,10 +60,6 @@ function formatBody(content: string | undefined, language: string): string {
   if (language === 'xml')  return formatXml(content);
   if (language === 'json') return formatJson(content);
   return content;
-}
-
-function extractPath(url: string): string {
-  try { const u = new URL(url); return u.pathname + u.search; } catch { return url; }
 }
 
 function getContentType(headers?: Record<string, string>): string | undefined {
@@ -183,12 +179,6 @@ const PaneMeta = styled.div`
   flex-shrink: 0;
 `;
 
-const HeadersPane = styled.div`
-  flex: 1;
-  overflow: auto;
-  padding: 14px;
-`;
-
 // ── Component ─────────────────────────────────────────────────────────────
 interface TrafficDetailsProps {
   log: TrafficLog;
@@ -222,7 +212,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
 
   const requestLang = getLanguage(log.requestHeaders);
   const responseLang = getLanguage(log.responseHeaders);
-  const displayPath = extractPath(log.url);
   const ss = statusStyle(log.status);
   const reqCT = getContentType(log.requestHeaders);
   const resCT = getContentType(log.responseHeaders);
@@ -262,7 +251,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
     <Panel>
       <DetailHeader>
         <MethodBadge style={{ background: methodBg(log.method) }}>{log.method}</MethodBadge>
-        <UrlText title={log.url}>{displayPath}</UrlText>
+        <UrlText title={log.url}>{log.url}</UrlText>
         {log.status != null && (
           <StatusChip style={{ background: ss.bg, color: ss.fg, border: `1px solid ${ss.border}` }}>
             {log.status}
@@ -270,7 +259,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
         )}
         {log.duration != null && <DurationText>{log.duration}ms</DurationText>}
         <ViewTab $active={view === 'body'}    onClick={() => setView('body')}>Body</ViewTab>
-        <ViewTab $active={view === 'headers'} onClick={() => setView('headers')}>Headers</ViewTab>
         <ViewTab $active={view === 'raw'}     onClick={() => setView('raw')}>Raw</ViewTab>
       </DetailHeader>
 
@@ -285,6 +273,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
                 onChange={() => {}}
                 language={requestLang}
                 readOnly
+                headers={log.requestHeaders}
                 initialSettings={editorSettings}
                 onSettingsChange={handleSettingsChange}
               />
@@ -296,6 +285,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
               <MonacoResponseViewer
                 value={formattedResponse}
                 language={responseLang}
+                headers={log.responseHeaders}
                 showLineNumbers={editorSettings.showLineNumbers}
                 showMinimap={editorSettings.showMinimap}
                 fontSize={editorSettings.fontSize}
@@ -303,14 +293,6 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
               />
             </EditorPane>
           </>
-        )}
-
-        {view === 'headers' && (
-          <HeadersPane>
-            <HeaderSection title="Request Headers" headers={log.requestHeaders} />
-            <div style={{ height: 16 }} />
-            <HeaderSection title="Response Headers" headers={log.responseHeaders} />
-          </HeadersPane>
         )}
 
         {view === 'raw' && (
@@ -325,32 +307,5 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
         )}
       </DetailBody>
     </Panel>
-  );
-}
-
-// ── HeaderSection subcomponent ─────────────────────────────────────────────
-function HeaderSection({ title, headers }: { title: string; headers?: Record<string, string> }) {
-  const entries = Object.entries(headers ?? {});
-  return (
-    <div>
-      <div style={{
-        fontSize: 12, fontWeight: 600, color: tokens.text.secondary,
-        marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px',
-      }}>{title}</div>
-      {entries.length === 0 ? (
-        <div style={{ fontSize: 12, color: tokens.text.muted, fontStyle: 'italic' }}>None</div>
-      ) : (
-        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-          <tbody>
-            {entries.map(([k, v]) => (
-              <tr key={k}>
-                <td style={{ padding: '5px 8px', color: tokens.syntax.param, fontWeight: 500, width: 200, borderBottom: `1px solid ${tokens.surface.elevated}`, whiteSpace: 'nowrap' }}>{k}</td>
-                <td style={{ padding: '5px 8px', color: tokens.text.primary, wordBreak: 'break-all', borderBottom: `1px solid ${tokens.surface.elevated}` }}>{String(v)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
   );
 }
