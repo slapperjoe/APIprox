@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import {
   MonacoRequestEditorWithToolbar,
   MonacoResponseViewer,
+  MonacoResponseViewerWithToolbar,
   DEFAULT_EDITOR_SETTINGS,
   formatXml,
   formatJson,
@@ -282,11 +283,13 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
             <EditorPane style={{ flex: 1, minHeight: 0 }}>
               <PaneLabel>Response</PaneLabel>
               {resCT && <PaneMeta>{resCT}</PaneMeta>}
-              <MonacoRequestEditorWithToolbar
+              <MonacoResponseViewerWithToolbar
                 value={formattedResponse}
-                onChange={() => {}}
                 language={responseLang}
-                readOnly
+                showLineNumbers={editorSettings.showLineNumbers}
+                showMinimap={editorSettings.showMinimap}
+                fontSize={editorSettings.fontSize}
+                fontFamily={editorSettings.fontFamily}
                 headers={log.responseHeaders}
               />
             </EditorPane>
