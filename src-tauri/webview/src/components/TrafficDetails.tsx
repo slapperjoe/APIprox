@@ -282,14 +282,14 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
             <EditorPane style={{ flex: 1, minHeight: 0 }}>
               <PaneLabel>Response</PaneLabel>
               {resCT && <PaneMeta>{resCT}</PaneMeta>}
-              <MonacoResponseViewer
+              <MonacoRequestEditorWithToolbar
                 value={formattedResponse}
+                onChange={() => {}}
                 language={responseLang}
+                readOnly
                 headers={log.responseHeaders}
-                showLineNumbers={editorSettings.showLineNumbers}
-                showMinimap={editorSettings.showMinimap}
-                fontSize={editorSettings.fontSize}
-                fontFamily={editorSettings.fontFamily}
+                initialSettings={editorSettings}
+                onSettingsChange={handleSettingsChange}
               />
             </EditorPane>
           </>
