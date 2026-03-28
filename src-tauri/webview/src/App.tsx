@@ -14,6 +14,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { HelpPage } from './components/HelpPage';
 import { TrafficLog } from './types';
 import { tokens } from './styles/tokens';
+import { useIgnoreList } from './utils/useIgnoreList';
 
 type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
 
@@ -46,6 +47,7 @@ function App() {
   const [platformOS, setPlatformOS] = useState<string>('unknown');
   const [isFocused, setIsFocused] = useState(true);
   const [appVersion, setAppVersion] = useState<string>('');
+  const { rules: ignoreRules, addRule: addIgnoreRule, removeRule: removeIgnoreRule } = useIgnoreList();
 
   // Taskbar attention: flash/bounce when breakpoints are held and window is not focused
   useEffect(() => {
@@ -205,9 +207,9 @@ function App() {
       </div>
 
       {/* Content Area */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {/* ServerControl is always mounted to preserve mode/sniffer state across tab switches */}
-        <div style={{ display: activeTab === 'proxy' ? 'block' : 'none', padding: '20px' }}>
+        <div style={{ display: activeTab === 'proxy' ? 'flex' : 'none', flexDirection: 'column', flex: 1, overflow: 'auto', padding: '20px' }}>
           <ServerControl onStatusChange={(info) => {
             setProxyEnabled(info.running);
             setProxyStatus(info.running ? { port: info.port, mode: info.mode } : null);
@@ -231,55 +233,56 @@ function App() {
             </div>
           </div>
 
-        {activeTab === 'traffic' && (
-          <div style={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-            {/* Left sidebar — traffic list */}
-            <div style={{
-              width: '360px',
-              flexShrink: 0,
-              borderRight: `1px solid ${tokens.border.default}`,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
-              <TrafficViewer
-                logs={trafficLogs}
-                onSelectLog={setSelectedLog}
-              />
-            </div>
-
-            {/* Right — request/response detail */}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {selectedLog
-                ? <TrafficDetails log={selectedLog} />
-                : (
-                  <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: tokens.text.muted,
-                    fontSize: tokens.fontSize.base,
-                    fontStyle: 'italic',
-                  }}>
-                    Select a request to inspect
-                  </div>
-                )
-              }
-            </div>
+        {/* Traffic tab is always mounted to preserve filter state across tab switches */}
+        <div style={{ display: activeTab === 'traffic' ? 'flex' : 'none', flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
+          {/* Left sidebar — traffic list */}
+          <div style={{
+            width: '360px',
+            flexShrink: 0,
+            borderRight: `1px solid ${tokens.border.default}`,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <TrafficViewer
+              logs={trafficLogs}
+              onSelectLog={setSelectedLog}
+              ignoreRules={ignoreRules}
+              onAddIgnoreRule={addIgnoreRule}
+            />
           </div>
-        )}
 
-        {activeTab === 'rules' && <RulesPage />}
+          {/* Right — request/response detail */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {selectedLog
+              ? <TrafficDetails log={selectedLog} />
+              : (
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: tokens.text.muted,
+                  fontSize: tokens.fontSize.base,
+                  fontStyle: 'italic',
+                }}>
+                  Select a request to inspect
+                </div>
+              )
+            }
+          </div>
+        </div>
+
+        <div style={{ display: activeTab === 'rules' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'auto' }}><RulesPage /></div>
         
         {activeTab === 'mock' && <MockRulesPage />}
-        
         {activeTab === 'breakpoints' && <BreakpointsPage />}
-        
         {activeTab === 'filewatcher' && <FileWatcherPage />}
-
-        {activeTab === 'settings' && <SettingsPage />}
-        
+        {activeTab === 'settings' && (
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <SettingsPage ignoreRules={ignoreRules} onRemoveIgnoreRule={removeIgnoreRule} onAddIgnoreRule={addIgnoreRule} />
+          </div>
+        )}
         {activeTab === 'help' && <HelpPage />}
       </div>
     </div>
