@@ -43,21 +43,18 @@ impl ReplacerService {
         let total = self.rules.len();
         let eligible: Vec<_> = self.rules.iter().filter(|r| {
             if !r.active {
-                log::debug!("[Replacer] Skipping '{}' — disabled", r.name);
                 return false;
             }
             let t = r.match_type.as_str();
-            let matches = t == "both" || t == context || t.is_empty();
-            if !matches {
-                log::debug!("[Replacer] Skipping '{}' — target='{}' does not match context='{}'", r.name, t, context);
-            }
-            matches
+            t == "both" || t == context || t.is_empty()
         }).collect();
 
-        log::debug!("[Replacer] context='{}' — {} total rules, {} eligible", context, total, eligible.len());
+        // Only log when there is something to act on
+        if !eligible.is_empty() {
+            log::debug!("[Replacer] context='{}' — {} eligible of {} rules", context, eligible.len(), total);
+        }
 
         if text.is_empty() {
-            log::debug!("[Replacer] Skipping apply — text is empty");
             return text.to_string();
         }
 

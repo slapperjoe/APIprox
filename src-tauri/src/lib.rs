@@ -28,6 +28,13 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // When running in sniffer mode the OS system proxy is set to point at our
+    // own port (127.0.0.1:8888). Without NO_PROXY=*, our own reqwest forwarding
+    // client would pick up the system proxy and loop back through us → 502.
+    // Setting it here, at process startup, covers all reqwest clients we build.
+    std::env::set_var("NO_PROXY", "*");
+    std::env::set_var("no_proxy", "*"); // some libs check lowercase
+
     tauri::Builder::default()
         .setup(|app| {
             info!("APIprox starting (version: {})", app.package_info().version);
@@ -101,6 +108,12 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Debug)
+                // External crates — suppress routine chatter
+                .level_for("rustls", log::LevelFilter::Warn)
+                .level_for("reqwest", log::LevelFilter::Warn)
+                .level_for("hyper", log::LevelFilter::Warn)
+                .level_for("hyper_util", log::LevelFilter::Warn)
+                .level_for("tokio_rustls", log::LevelFilter::Warn)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
