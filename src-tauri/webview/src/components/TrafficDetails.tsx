@@ -1,32 +1,18 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import {
   MonacoRequestEditorWithToolbar,
   MonacoResponseViewer,
   MonacoResponseViewerWithToolbar,
-  DEFAULT_EDITOR_SETTINGS,
   formatXml,
   formatJson,
+  useEditorSettings,
 } from '@apinox/request-editor';
-import type { EditorSettings } from '@apinox/request-editor';
 import { TrafficLog } from '../types';
 import { tokens } from '../styles/tokens';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type DetailView = 'body' | 'raw';
-
-// ── Editor settings (shared key with FileWatcherPage) ──────────────────────
-const EDITOR_SETTINGS_KEY = 'apiprox-editor-settings';
-const loadEditorSettings = (): EditorSettings => {
-  try {
-    const raw = localStorage.getItem(EDITOR_SETTINGS_KEY);
-    if (raw) return { ...DEFAULT_EDITOR_SETTINGS, ...JSON.parse(raw) };
-  } catch {}
-  return DEFAULT_EDITOR_SETTINGS;
-};
-const saveEditorSettings = (s: EditorSettings) => {
-  try { localStorage.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(s)); } catch {}
-};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function methodBg(method: string): string {
@@ -56,9 +42,9 @@ function getLanguage(headers?: Record<string, string>): string {
   return 'text';
 }
 
-function formatBody(content: string | undefined, language: string): string {
+function formatBody(content: string | undefined, language: string, settings: { alignAttributes: boolean; inlineValues: boolean; hideCausality: boolean }): string {
   if (!content) return '';
-  if (language === 'xml')  return formatXml(content);
+  if (language === 'xml')  return formatXml(content, settings.alignAttributes, settings.inlineValues, settings.hideCausality);
   if (language === 'json') return formatJson(content);
   return content;
 }
@@ -187,16 +173,11 @@ interface TrafficDetailsProps {
 
 export function TrafficDetails({ log }: TrafficDetailsProps) {
   const [view, setView] = useState<DetailView>('body');
-  const [editorSettings, setEditorSettings] = useState<EditorSettings>(loadEditorSettings);
+  const { settings, updateSettings } = useEditorSettings();
   const [isDragging, setIsDragging] = useState(false);
   const [userRequestPx, setUserRequestPx] = useState<number | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [bodyHeight, setBodyHeight] = useState(0);
-
-  const handleSettingsChange = useCallback((s: EditorSettings) => {
-    setEditorSettings(s);
-    saveEditorSettings(s);
-  }, []);
 
   // Reset split when switching to a different log entry
   useEffect(() => { setUserRequestPx(null); }, [log.id]);

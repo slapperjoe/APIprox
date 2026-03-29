@@ -3,7 +3,26 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles/global.css'
 import { tokens } from './styles/tokens'
-import { ThemeProvider, EditorSettingsProvider } from '@apinox/request-editor'
+import { ThemeProvider, EditorSettingsProvider, DEFAULT_EDITOR_SETTINGS } from '@apinox/request-editor'
+import type { EditorSettings } from '@apinox/request-editor'
+
+// Persist editor settings across sessions
+const EDITOR_SETTINGS_KEY = 'apiprox-editor-settings';
+function loadPersistedSettings(): Partial<EditorSettings> {
+  try {
+    const raw = localStorage.getItem(EDITOR_SETTINGS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+function persistSettings(s: EditorSettings) {
+  try { localStorage.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(s)); } catch {}
+}
+
+const initialEditorSettings: Partial<EditorSettings> = {
+  ...DEFAULT_EDITOR_SETTINGS,
+  ...loadPersistedSettings(),
+};
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -36,7 +55,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ThemeProvider standalone={false}>
-        <EditorSettingsProvider>
+        <EditorSettingsProvider initialSettings={initialEditorSettings} onSettingsChange={persistSettings}>
           <App />
         </EditorSettingsProvider>
       </ThemeProvider>
