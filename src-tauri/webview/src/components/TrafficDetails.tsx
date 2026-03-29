@@ -274,6 +274,7 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
                 onChange={() => {}}
                 language={requestLang}
                 readOnly
+                requestId={log.id}
                 headers={log.requestHeaders}
                 initialSettings={editorSettings}
                 onSettingsChange={handleSettingsChange}
