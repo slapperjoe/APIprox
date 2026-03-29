@@ -1,7 +1,7 @@
 {
   "name": "apiprox-webview",
   "private": true,
-  "version": "0.1.57",
+  "version": "0.1.58",
   "scripts": {
     "dev": "npx vite",
     "build": "tsc && npx vite build",
