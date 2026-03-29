@@ -111,3 +111,5 @@ bundles/
 *.bak
 *.backup
 *~
+# Salesforce VS Code extension (generated regardless of project type)
+.sfdx/
