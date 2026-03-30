@@ -18,6 +18,8 @@ jobs:
   # ── Gate: ensure the latest CI run on main passed ──────────────────────────
   check-ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
