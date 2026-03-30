@@ -209,9 +209,13 @@ interface TrafficViewerProps {
   onSelectLog?: (log: TrafficLog) => void;
   ignoreRules?: IgnoreRule[];
   onAddIgnoreRule?: (url: string, mode: 'host' | 'host+path') => void;
+  /** Called when user right-clicks → "Create Mock Rule" */
+  onCreateMockRule?: (log: TrafficLog) => void;
+  /** Called when user right-clicks → "Create Replace Rule" */
+  onCreateReplaceRule?: (log: TrafficLog) => void;
 }
 
-export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnoreRule }: TrafficViewerProps) {
+export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnoreRule, onCreateMockRule, onCreateReplaceRule }: TrafficViewerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [urlFilter, setUrlFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
@@ -342,7 +346,7 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
 
       {/* Right-click context menu */}
       {ctxMenu && (
-        <IgnoreContextMenu
+        <TrafficContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
           log={ctxMenu.log}
@@ -350,6 +354,8 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
             onAddIgnoreRule?.(ctxMenu.log.url, mode);
             setCtxMenu(null);
           }}
+          onCreateMockRule={onCreateMockRule ? (log) => { onCreateMockRule(log); setCtxMenu(null); } : undefined}
+          onCreateReplaceRule={onCreateReplaceRule ? (log) => { onCreateReplaceRule(log); setCtxMenu(null); } : undefined}
           onClose={() => setCtxMenu(null)}
         />
       )}
@@ -357,19 +363,22 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
   );
 }
 
-// ── IgnoreContextMenu ─────────────────────────────────────────────────────
-function IgnoreContextMenu({
-  x, y, log, onIgnore, onClose,
+// ── TrafficContextMenu ────────────────────────────────────────────────────
+function TrafficContextMenu({
+  x, y, log, onIgnore, onCreateMockRule, onCreateReplaceRule, onClose,
 }: {
   x: number; y: number; log: TrafficLog;
   onIgnore: (mode: 'host' | 'host+path') => void;
+  onCreateMockRule?: (log: TrafficLog) => void;
+  onCreateReplaceRule?: (log: TrafficLog) => void;
   onClose: () => void;
 }) {
   const hostPattern     = ignorePatternFor(log.url, 'host');
   const hostPathPattern = ignorePatternFor(log.url, 'host+path');
 
-  // Flip up if close to bottom of viewport
-  const menuH = 110;
+  // Estimate menu height and flip up if near bottom
+  const hasCreate = !!(onCreateMockRule || onCreateReplaceRule);
+  const menuH = hasCreate ? 230 : 120;
   const top = y + menuH > window.innerHeight ? y - menuH : y;
 
   return (
@@ -381,10 +390,41 @@ function IgnoreContextMenu({
         border: `1px solid ${tokens.border.default}`,
         borderRadius: tokens.radius.lg,
         boxShadow: '0 14px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
-        minWidth: 240, overflow: 'hidden',
+        minWidth: 260, overflow: 'hidden',
         animation: 'ctxFadeIn 0.1s ease',
       }}
     >
+      {/* Create Rule section */}
+      {hasCreate && (
+        <>
+          <div style={{
+            padding: '6px 12px',
+            background: tokens.surface.elevated,
+            borderBottom: `1px solid ${tokens.border.default}`,
+            fontSize: 10, fontWeight: 600, color: tokens.text.muted,
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>Create Rule From Traffic</div>
+          {onCreateMockRule && (
+            <CtxItem
+              icon="🎭"
+              label="Create Mock Rule"
+              sub="Pre-fill response from this traffic"
+              onClick={() => onCreateMockRule(log)}
+            />
+          )}
+          {onCreateReplaceRule && (
+            <CtxItem
+              icon="✏️"
+              label="Create Replace Rule"
+              sub="Open replace rule editor"
+              onClick={() => onCreateReplaceRule(log)}
+            />
+          )}
+          <div style={{ borderTop: `1px solid ${tokens.border.default}` }} />
+        </>
+      )}
+
+      {/* Ignore section */}
       <div style={{
         padding: '6px 12px',
         background: tokens.surface.elevated,

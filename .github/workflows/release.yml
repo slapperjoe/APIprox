@@ -160,6 +160,13 @@ jobs:
           fetch-tags: true
           ref: main
 
+      - name: Create and push version tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ needs.check-ci.outputs.version }}"
+          git push origin "v${{ needs.check-ci.outputs.version }}"
+
       - name: Build changelog from commits since last tag
         id: changelog
         run: |

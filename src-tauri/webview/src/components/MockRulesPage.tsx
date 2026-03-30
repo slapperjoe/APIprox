@@ -413,7 +413,10 @@ function normalizeConditions(conditions: MockCondition[]): string {
   );
 }
 
-export function MockRulesPage() {
+export function MockRulesPage({ initialRule, onInitialRuleConsumed }: {
+  initialRule?: MockRule | null;
+  onInitialRuleConsumed?: () => void;
+}) {
   const [rules, setRules] = useState<MockRule[]>([]);
   const [editingRule, setEditingRule] = useState<MockRule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -427,6 +430,16 @@ export function MockRulesPage() {
   useEffect(() => {
     loadRules();
   }, []);
+
+  // Open the editor pre-filled from a traffic log selection
+  useEffect(() => {
+    if (!initialRule) return;
+    const isPreset = CONTENT_TYPES.some(o => o.value !== '' && o.value === initialRule.contentType);
+    setCustomContentType(isPreset ? '' : (initialRule.contentType || ''));
+    setEditingRule({ ...initialRule, tags: initialRule.tags ?? [] });
+    onInitialRuleConsumed?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRule]);
 
   async function loadRules() {
     try {
@@ -656,7 +669,7 @@ export function MockRulesPage() {
     boxSizing: 'border-box',
   };
 
-  if (isLoading) {
+  if (isLoading && !editingRule) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <div style={{ color: tokens.text.muted }}>Loading mock rules...</div>

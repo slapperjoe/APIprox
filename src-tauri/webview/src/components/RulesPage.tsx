@@ -3,7 +3,19 @@ import { bridge } from '../utils/bridge';
 import { ReplaceRule } from '../types';
 import { tokens } from '../styles/tokens';
 
-export function RulesPage() {
+interface PendingReplaceForm {
+  name: string;
+  matchText: string;
+  replaceWith: string;
+  target: ReplaceRule['target'];
+  isRegex: boolean;
+  xpath: string;
+}
+
+export function RulesPage({ pendingForm, onPendingFormConsumed }: {
+  pendingForm?: PendingReplaceForm | null;
+  onPendingFormConsumed?: () => void;
+}) {
   const [rules, setRules] = useState<ReplaceRule[]>([]);
   const [showAddRule, setShowAddRule] = useState(false);
   const [editingRule, setEditingRule] = useState<ReplaceRule | null>(null);
@@ -16,6 +28,16 @@ export function RulesPage() {
     isRegex: false,
     xpath: '',
   });
+
+  // Open the add modal pre-filled from a traffic log selection
+  useEffect(() => {
+    if (!pendingForm) return;
+    setForm(pendingForm);
+    setEditingRule(null);
+    setShowAddRule(true);
+    onPendingFormConsumed?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingForm]);
 
   useEffect(() => {
     loadRules();

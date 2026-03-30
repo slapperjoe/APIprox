@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
@@ -15,6 +15,7 @@ import { HelpPage } from './components/HelpPage';
 import { TrafficLog } from './types';
 import { tokens } from './styles/tokens';
 import { useIgnoreList } from './utils/useIgnoreList';
+import { ConditionPickerModal, suggestConditionsFromSoapXml, SuggestedCondition } from './components/ConditionPickerModel';
 
 type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
 
@@ -48,6 +49,99 @@ function App() {
   const [isFocused, setIsFocused] = useState(true);
   const [appVersion, setAppVersion] = useState<string>('');
   const { rules: ignoreRules, addRule: addIgnoreRule, removeRule: removeIgnoreRule } = useIgnoreList();
+
+  // ── Traffic → Rule creation ───────────────────────────────────────────────
+  // Pending pre-filled rules to open in the target page modals
+  const [pendingMockRule, setPendingMockRule] = useState<any | null>(null);
+  const [pendingReplaceForm, setPendingReplaceForm] = useState<{ name: string; matchText: string; replaceWith: string; target: 'request' | 'response' | 'both'; isRegex: boolean; xpath: string } | null>(null);
+  const [conditionPickerState, setConditionPickerState] = useState<{ log: TrafficLog; suggestions: SuggestedCondition[] } | null>(null);
+
+  function extractUrlPath(url: string): string {
+    try { const u = new URL(url); return u.pathname + u.search; } catch { return url; }
+  }
+
+  function handleCreateMockRule(log: TrafficLog) {
+    const ct = (log.responseHeaders?.['content-type'] ?? log.responseHeaders?.['Content-Type'] ?? 'text/xml; charset=utf-8') as string;
+    const isXml = ct.includes('xml') || ct.includes('soap');
+    const path = extractUrlPath(log.url);
+
+    const httpSuggestions: SuggestedCondition[] = [
+      {
+        label: `URL contains "${path}"`,
+        condition: { type: 'url', pattern: path, isRegex: false },
+        recommended: true,
+        group: 'HTTP',
+      },
+      {
+        label: `Method = ${log.method}`,
+        condition: { type: 'method', pattern: log.method, isRegex: false },
+        recommended: false,
+        group: 'HTTP',
+      },
+    ];
+
+    const xmlSuggestions: SuggestedCondition[] = (isXml && log.requestBody)
+      ? suggestConditionsFromSoapXml(log.requestBody)
+      : [];
+
+    // SOAP/XML conditions first, HTTP at end
+    setConditionPickerState({ log, suggestions: [...xmlSuggestions, ...httpSuggestions] });
+  }
+
+  function handleConditionsConfirmed(conditions: any[]) {
+    if (!conditionPickerState) return;
+    const { log } = conditionPickerState;
+    const ct = (log.responseHeaders?.['content-type'] ?? log.responseHeaders?.['Content-Type'] ?? 'text/xml; charset=utf-8') as string;
+    const path = extractUrlPath(log.url);
+    setPendingMockRule({
+      id: '',
+      name: `Mock ${path}`,
+      enabled: true,
+      conditions: conditions.length > 0 ? conditions : [{ type: 'url', pattern: path, isRegex: false }],
+      statusCode: log.status ?? 200,
+      contentType: ct,
+      responseBody: log.responseBody ?? '',
+      responseHeaders: { ...(log.responseHeaders ?? {}) },
+      delayMs: 0,
+      tags: [],
+    });
+    setConditionPickerState(null);
+    setActiveTab('mock');
+  }
+
+  function handleCreateReplaceRule(log: any) {
+    const path = extractUrlPath(log.url);
+    setPendingReplaceForm({
+      name: `Replace in ${path}`,
+      matchText: '',
+      replaceWith: '',
+      target: 'response',
+      isRegex: false,
+      xpath: '',
+    });
+    setActiveTab('rules');
+  }
+
+  // Resizable traffic sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(360);
+  const sidebarDragging = useRef(false);
+  const handleSidebarDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    sidebarDragging.current = true;
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.max(200, Math.min(startWidth + (ev.clientX - startX), 700));
+      setSidebarWidth(next);
+    };
+    const onUp = () => {
+      sidebarDragging.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [sidebarWidth]);
 
   // Taskbar attention: flash/bounce when breakpoints are held and window is not focused
   useEffect(() => {
@@ -237,9 +331,8 @@ function App() {
         <div style={{ display: activeTab === 'traffic' ? 'flex' : 'none', flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
           {/* Left sidebar — traffic list */}
           <div style={{
-            width: '360px',
+            width: `${sidebarWidth}px`,
             flexShrink: 0,
-            borderRight: `1px solid ${tokens.border.default}`,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
@@ -249,8 +342,24 @@ function App() {
               onSelectLog={setSelectedLog}
               ignoreRules={ignoreRules}
               onAddIgnoreRule={addIgnoreRule}
+              onCreateMockRule={handleCreateMockRule}
+              onCreateReplaceRule={handleCreateReplaceRule}
             />
           </div>
+
+          {/* Resize handle */}
+          <div
+            onMouseDown={handleSidebarDividerMouseDown}
+            style={{
+              width: '5px',
+              flexShrink: 0,
+              background: tokens.border.default,
+              cursor: 'col-resize',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = tokens.status.accentDark)}
+            onMouseLeave={e => (e.currentTarget.style.background = tokens.border.default)}
+          />
 
           {/* Right — request/response detail */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -273,9 +382,19 @@ function App() {
           </div>
         </div>
 
-        <div style={{ display: activeTab === 'rules' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'auto' }}><RulesPage /></div>
+        <div style={{ display: activeTab === 'rules' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'auto' }}>
+          <RulesPage
+            pendingForm={pendingReplaceForm}
+            onPendingFormConsumed={() => setPendingReplaceForm(null)}
+          />
+        </div>
         
-        {activeTab === 'mock' && <MockRulesPage />}
+        {activeTab === 'mock' && (
+          <MockRulesPage
+            initialRule={pendingMockRule}
+            onInitialRuleConsumed={() => setPendingMockRule(null)}
+          />
+        )}
         {activeTab === 'breakpoints' && <BreakpointsPage />}
         {activeTab === 'filewatcher' && <FileWatcherPage />}
         {activeTab === 'settings' && (
@@ -284,6 +403,13 @@ function App() {
           </div>
         )}
         {activeTab === 'help' && <HelpPage />}
+      {conditionPickerState && (
+        <ConditionPickerModal
+          suggestions={conditionPickerState.suggestions}
+          onConfirm={handleConditionsConfirmed}
+          onCancel={() => setConditionPickerState(null)}
+        />
+      )}
       </div>
     </div>
   );
