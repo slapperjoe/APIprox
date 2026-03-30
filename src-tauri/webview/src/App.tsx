@@ -54,6 +54,7 @@ function App() {
   // Pending pre-filled rules to open in the target page modals
   const [pendingMockRule, setPendingMockRule] = useState<any | null>(null);
   const [pendingReplaceForm, setPendingReplaceForm] = useState<{ name: string; matchText: string; replaceWith: string; target: 'request' | 'response' | 'both'; isRegex: boolean; xpath: string } | null>(null);
+  const [pendingBreakpointRule, setPendingBreakpointRule] = useState<any | null>(null);
   const [conditionPickerState, setConditionPickerState] = useState<{ log: TrafficLog; suggestions: SuggestedCondition[] } | null>(null);
 
   function extractUrlPath(url: string): string {
@@ -107,6 +108,18 @@ function App() {
     });
     setConditionPickerState(null);
     setActiveTab('mock');
+  }
+
+  function handleCreateBreakpoint(log: any) {
+    const path = extractUrlPath(log.url);
+    setPendingBreakpointRule({
+      id: `bp-${Date.now()}`,
+      name: `Breakpoint ${path}`,
+      enabled: true,
+      target: 'both',
+      conditions: [{ type: 'url', pattern: path, isRegex: false }],
+    });
+    setActiveTab('breakpoints');
   }
 
   function handleCreateReplaceRule(log: any) {
@@ -344,6 +357,7 @@ function App() {
               onAddIgnoreRule={addIgnoreRule}
               onCreateMockRule={handleCreateMockRule}
               onCreateReplaceRule={handleCreateReplaceRule}
+              onCreateBreakpoint={handleCreateBreakpoint}
             />
           </div>
 
@@ -395,7 +409,12 @@ function App() {
             onInitialRuleConsumed={() => setPendingMockRule(null)}
           />
         )}
-        {activeTab === 'breakpoints' && <BreakpointsPage />}
+        {activeTab === 'breakpoints' && (
+          <BreakpointsPage
+            initialRule={pendingBreakpointRule}
+            onInitialRuleConsumed={() => setPendingBreakpointRule(null)}
+          />
+        )}
         {activeTab === 'filewatcher' && <FileWatcherPage />}
         {activeTab === 'settings' && (
           <div style={{ flex: 1, overflow: 'auto' }}>

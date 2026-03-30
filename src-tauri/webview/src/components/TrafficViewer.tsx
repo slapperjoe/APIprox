@@ -213,9 +213,11 @@ interface TrafficViewerProps {
   onCreateMockRule?: (log: TrafficLog) => void;
   /** Called when user right-clicks → "Create Replace Rule" */
   onCreateReplaceRule?: (log: TrafficLog) => void;
+  /** Called when user right-clicks → "Create Breakpoint" */
+  onCreateBreakpoint?: (log: TrafficLog) => void;
 }
 
-export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnoreRule, onCreateMockRule, onCreateReplaceRule }: TrafficViewerProps) {
+export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnoreRule, onCreateMockRule, onCreateReplaceRule, onCreateBreakpoint }: TrafficViewerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [urlFilter, setUrlFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
@@ -356,6 +358,7 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
           }}
           onCreateMockRule={onCreateMockRule ? (log) => { onCreateMockRule(log); setCtxMenu(null); } : undefined}
           onCreateReplaceRule={onCreateReplaceRule ? (log) => { onCreateReplaceRule(log); setCtxMenu(null); } : undefined}
+          onCreateBreakpoint={onCreateBreakpoint ? (log) => { onCreateBreakpoint(log); setCtxMenu(null); } : undefined}
           onClose={() => setCtxMenu(null)}
         />
       )}
@@ -365,20 +368,21 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
 
 // ── TrafficContextMenu ────────────────────────────────────────────────────
 function TrafficContextMenu({
-  x, y, log, onIgnore, onCreateMockRule, onCreateReplaceRule, onClose,
+  x, y, log, onIgnore, onCreateMockRule, onCreateReplaceRule, onCreateBreakpoint, onClose,
 }: {
   x: number; y: number; log: TrafficLog;
   onIgnore: (mode: 'host' | 'host+path') => void;
   onCreateMockRule?: (log: TrafficLog) => void;
   onCreateReplaceRule?: (log: TrafficLog) => void;
+  onCreateBreakpoint?: (log: TrafficLog) => void;
   onClose: () => void;
 }) {
   const hostPattern     = ignorePatternFor(log.url, 'host');
   const hostPathPattern = ignorePatternFor(log.url, 'host+path');
 
   // Estimate menu height and flip up if near bottom
-  const hasCreate = !!(onCreateMockRule || onCreateReplaceRule);
-  const menuH = hasCreate ? 230 : 120;
+  const hasCreate = !!(onCreateMockRule || onCreateReplaceRule || onCreateBreakpoint);
+  const menuH = hasCreate ? 260 : 120;
   const top = y + menuH > window.innerHeight ? y - menuH : y;
 
   return (
@@ -418,6 +422,14 @@ function TrafficContextMenu({
               label="Create Replace Rule"
               sub="Open replace rule editor"
               onClick={() => onCreateReplaceRule(log)}
+            />
+          )}
+          {onCreateBreakpoint && (
+            <CtxItem
+              icon="⏸️"
+              label="Create Breakpoint"
+              sub="Pause matching traffic for inspection"
+              onClick={() => onCreateBreakpoint(log)}
             />
           )}
           <div style={{ borderTop: `1px solid ${tokens.border.default}` }} />

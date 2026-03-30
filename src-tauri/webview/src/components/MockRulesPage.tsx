@@ -1061,9 +1061,61 @@ export function MockRulesPage({ initialRule, onInitialRuleConsumed }: {
 
             {/* Response Body */}
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: tokens.fontSize.base, marginBottom: '6px', color: tokens.text.secondary }}>
-                Response Body
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <label style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary }}>
+                  Response Body
+                </label>
+                <button
+                  title="Format JSON / XML"
+                  onClick={() => {
+                    const lang = contentTypeToLanguage(editingRule.contentType || '');
+                    try {
+                      let formatted = editingRule.responseBody;
+                      if (lang === 'json') {
+                        formatted = JSON.stringify(JSON.parse(formatted), null, 2);
+                      } else if (lang === 'xml') {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(formatted, 'application/xml');
+                        if (!doc.querySelector('parsererror')) {
+                          const xs = new XMLSerializer();
+                          // Indent via a simple recursive formatter
+                          function indentXml(node: Node, depth: number): string {
+                            const indent = '  '.repeat(depth);
+                            if (node.nodeType === Node.TEXT_NODE) {
+                              const t = node.textContent?.trim() ?? '';
+                              return t ? indent + t + '\n' : '';
+                            }
+                            if (node.nodeType !== Node.ELEMENT_NODE) return '';
+                            const el = node as Element;
+                            const tag = el.tagName;
+                            const attrs = Array.from(el.attributes)
+                              .map(a => ` ${a.name}="${a.value}"`).join('');
+                            const children = Array.from(el.childNodes);
+                            const inner = children.map(c => indentXml(c, depth + 1)).join('');
+                            if (!inner.trim()) return `${indent}<${tag}${attrs} />\n`;
+                            // If sole text node keep on one line
+                            if (children.length === 1 && children[0].nodeType === Node.TEXT_NODE) {
+                              return `${indent}<${tag}${attrs}>${children[0].textContent?.trim()}</${tag}>\n`;
+                            }
+                            return `${indent}<${tag}${attrs}>\n${inner}${indent}</${tag}>\n`;
+                          }
+                          // Add XML declaration if present
+                          const decl = formatted.trimStart().startsWith('<?xml') ? '<?xml version="1.0" encoding="UTF-8"?>\n' : '';
+                          formatted = decl + indentXml(doc.documentElement, 0);
+                        }
+                      }
+                      setEditingRule({ ...editingRule, responseBody: formatted });
+                    } catch {
+                      // Ignore format errors silently
+                    }
+                  }}
+                  style={{
+                    padding: '3px 10px', fontSize: '11px', cursor: 'pointer',
+                    background: tokens.surface.elevated, border: `1px solid ${tokens.border.subtle}`,
+                    borderRadius: tokens.radius.sm, color: tokens.text.muted,
+                  }}
+                >Format ↩</button>
+              </div>
               <div style={{
                 height: '280px',
                 border: `1px solid ${tokens.border.subtle}`,

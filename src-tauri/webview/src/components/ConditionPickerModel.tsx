@@ -201,10 +201,11 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
   const selectedCount = selected.size;
 
   const inputStyle: React.CSSProperties = {
-    flexShrink: 0, width: '230px',
+    width: '100%',
     padding: '3px 7px', background: tokens.surface.input,
     border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.sm,
     color: tokens.text.secondary, fontSize: tokens.fontSize.xs, fontFamily: 'Consolas, monospace',
+    marginTop: '5px',
   };
 
   return (
@@ -270,7 +271,7 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
                     <div
                       key={idx}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: '10px',
+                        display: 'flex', flexDirection: 'column',
                         padding: '7px 10px', marginBottom: '4px',
                         borderRadius: '4px', cursor: 'pointer',
                         background: isSelected ? 'rgba(14,99,156,0.15)' : tokens.surface.base,
@@ -278,34 +279,37 @@ export const ConditionPickerModal: React.FC<ConditionPickerModalProps> = ({
                       }}
                       onClick={() => toggle(idx)}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggle(idx)}
-                        onClick={e => e.stopPropagation()}
-                        style={{ flexShrink: 0, cursor: 'pointer' }}
-                      />
-                      <div style={{
-                        flex: 1, fontSize: '12px',
-                        color: isSelected ? tokens.text.secondary : tokens.text.muted,
-                        fontWeight: isSelected ? 500 : 400,
-                      }}>
-                        {sg.label}
-                        {sg.recommended && (
-                          <span style={{
-                            marginLeft: '6px', fontSize: '9px', background: '#1e3a5a',
-                            color: '#6db3e8', padding: '1px 5px', borderRadius: '8px',
-                          }}>recommended</span>
-                        )}
+                      {/* Top row: checkbox + label + recommended badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggle(idx)}
+                          onClick={e => e.stopPropagation()}
+                          style={{ flexShrink: 0, cursor: 'pointer' }}
+                        />
+                        <div style={{
+                          flex: 1, fontSize: '12px',
+                          color: isSelected ? tokens.text.secondary : tokens.text.muted,
+                          fontWeight: isSelected ? 500 : 400,
+                          wordBreak: 'break-all',
+                        }}>
+                          {sg.label}
+                          {sg.recommended && (
+                            <span style={{
+                              marginLeft: '6px', fontSize: '9px', background: '#1e3a5a',
+                              color: '#6db3e8', padding: '1px 5px', borderRadius: '8px',
+                            }}>recommended</span>
+                          )}
+                        </div>
                       </div>
-                      {/* Editable pattern — clicking here does not toggle the row */}
+                      {/* Pattern input — full width below the label */}
                       <input
                         type="text"
                         value={pattern}
                         onClick={e => e.stopPropagation()}
                         onChange={e => {
                           setEditedPatterns(prev => ({ ...prev, [idx]: e.target.value }));
-                          // Editing a pattern auto-selects the row
                           if (!isSelected) {
                             setSelected(prev => { const n = new Set(prev); n.add(idx); return n; });
                           }

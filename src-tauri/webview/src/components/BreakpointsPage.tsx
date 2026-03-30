@@ -34,7 +34,10 @@ interface PausedTraffic {
   matchedRule: string;
 }
 
-export function BreakpointsPage() {
+export function BreakpointsPage({ initialRule, onInitialRuleConsumed }: {
+  initialRule?: BreakpointRule | null;
+  onInitialRuleConsumed?: () => void;
+} = {}) {
   const [rules, setRules] = useState<BreakpointRule[]>([]);
   const [queue, setQueue] = useState<PausedTraffic[]>([]);
   const [editingRule, setEditingRule] = useState<BreakpointRule | null>(null);
@@ -52,6 +55,14 @@ export function BreakpointsPage() {
   });
   const [now, setNow] = useState<number>(Date.now());
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Open edit modal pre-filled when a rule is passed in from traffic context menu
+  useEffect(() => {
+    if (initialRule) {
+      setEditingRule(initialRule);
+      onInitialRuleConsumed?.();
+    }
+  }, [initialRule]);
 
   useEffect(() => {
     loadRules();
