@@ -1,6 +1,6 @@
 [package]
 name = "apiprox"
-version = "0.1.65"
+version = "0.1.66"
 description = "APIprox - HTTP/HTTPS Proxy and Mock Server"
 authors = ["Dev1"]
 license = "MIT"
