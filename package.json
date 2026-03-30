@@ -1,6 +1,6 @@
 {
   "name": "apiprox",
-  "version": "0.1.65",
+  "version": "0.1.66",
   "description": "HTTP/HTTPS Proxy and Mock Server for API Testing",
   "private": true,
   "type": "module",
