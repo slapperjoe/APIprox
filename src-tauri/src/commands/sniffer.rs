@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::process::Command;
 use tauri::State;
 
