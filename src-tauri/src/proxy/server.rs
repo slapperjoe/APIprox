@@ -378,9 +378,31 @@ async fn handle_http(
 
     let mut rb = client.request(req_method, &forward_url);
 
+    // Strip hop-by-hop and proxy-specific headers. The proxy has already fully
+    // buffered the body, so the original Transfer-Encoding and Content-Length
+    // are no longer valid for the outbound request. reqwest will set the correct
+    // Content-Length from the actual body bytes. Forwarding Transfer-Encoding:chunked
+    // alongside a fixed body causes WCF services to enter an ambiguous read path
+    // (they create a buffered copy of the message, then the dispatcher reads the original
+    // → "This message cannot support the operation because it has been copied").
+    const HOP_BY_HOP: &[&str] = &[
+        "host",
+        "connection",
+        "keep-alive",
+        "proxy-connection",
+        "proxy-authorization",
+        "proxy-authenticate",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "content-length",   // let reqwest calculate from actual body
+        "expect",           // 100-continue is meaningless after body is buffered
+    ];
+
     for (k, v) in &req_headers {
         let lk = k.to_lowercase();
-        if lk != "host" && lk != "proxy-connection" && lk != "proxy-authorization" {
+        if !HOP_BY_HOP.contains(&lk.as_str()) {
             rb = rb.header(k.as_str(), v.as_str());
         }
     }
