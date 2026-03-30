@@ -414,10 +414,34 @@ async fn handle_http(
     let (status, resp_headers, resp_body) = match rb.send().await {
         Ok(resp) => {
             let status = resp.status().as_u16();
+            // Strip response hop-by-hop headers immediately. This must happen before
+            // the breakpoint path so that:
+            //  1. PausedTraffic shown in the UI never contains Transfer-Encoding: chunked
+            //     (avoids users accidentally forwarding it via "Continue with Changes")
+            //  2. The traffic log records the headers the client actually sees
+            //  3. The final hyper response builder receives already-clean headers
+            // content-length is also stripped here and re-added correctly below from
+            // the actual buffered body byte count.
             let resp_headers: HashMap<String, String> = resp
                 .headers()
                 .iter()
-                .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
+                .filter_map(|(k, v)| {
+                    let lk = k.as_str().to_lowercase();
+                    if matches!(
+                        lk.as_str(),
+                        "transfer-encoding"
+                            | "content-length"
+                            | "connection"
+                            | "keep-alive"
+                            | "te"
+                            | "trailers"
+                            | "upgrade"
+                    ) {
+                        None
+                    } else {
+                        v.to_str().ok().map(|v| (k.to_string(), v.to_string()))
+                    }
+                })
                 .collect();
             let body_bytes = resp.bytes().await.unwrap_or_default();
             let body_str = String::from_utf8_lossy(&body_bytes).into_owned();
@@ -505,11 +529,15 @@ async fn handle_http(
         },
     );
 
-    // Build hyper response, stripping hop-by-hop headers
+    // Build hyper response. resp_headers was already stripped of hop-by-hop headers
+    // at collection time. The loop below is a safety net in case modified_headers
+    // from a breakpoint "Continue with Changes" still carries any of them.
     let mut hb = Response::builder().status(status);
     for (k, v) in &resp_headers {
         let lk = k.to_lowercase();
-        if lk != "transfer-encoding" && lk != "content-length" && lk != "connection" {
+        if lk != "transfer-encoding" && lk != "content-length" && lk != "connection"
+            && lk != "keep-alive" && lk != "te" && lk != "trailers" && lk != "upgrade"
+        {
             hb = hb.header(k.as_str(), v.as_str());
         }
     }
