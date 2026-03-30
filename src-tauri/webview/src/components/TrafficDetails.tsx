@@ -199,8 +199,8 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
   const resCT = getContentType(log.responseHeaders);
 
   // Format bodies eagerly — XML/JSON arrive minified from the backend
-  const formattedRequest  = formatBody(log.requestBody,  requestLang);
-  const formattedResponse = formatBody(log.responseBody, responseLang);
+  const formattedRequest  = formatBody(log.requestBody,  requestLang, settings);
+  const formattedResponse = formatBody(log.responseBody, responseLang, settings);
 
   // Natural request-pane height (mirrors FileWatcherPage logic)
   const LINE_HEIGHT = 19;
@@ -257,8 +257,8 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
                 readOnly
                 requestId={log.id}
                 headers={log.requestHeaders}
-                initialSettings={editorSettings}
-                onSettingsChange={handleSettingsChange}
+                initialSettings={settings}
+                onSettingsChange={updateSettings}
               />
             </EditorPane>
             <SplitDivider $dragging={isDragging} onMouseDown={handleDividerMouseDown} />
@@ -268,10 +268,10 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
               <MonacoResponseViewerWithToolbar
                 value={formattedResponse}
                 language={responseLang}
-                showLineNumbers={editorSettings.showLineNumbers}
-                showMinimap={editorSettings.showMinimap}
-                fontSize={editorSettings.fontSize}
-                fontFamily={editorSettings.fontFamily}
+                showLineNumbers={settings.showLineNumbers}
+                showMinimap={settings.showMinimap}
+                fontSize={settings.fontSize}
+                fontFamily={settings.fontFamily}
                 headers={log.responseHeaders}
               />
             </EditorPane>
@@ -282,10 +282,10 @@ export function TrafficDetails({ log }: TrafficDetailsProps) {
           <MonacoResponseViewer
             value={JSON.stringify(log, null, 2)}
             language="json"
-            showLineNumbers={editorSettings.showLineNumbers}
-            showMinimap={editorSettings.showMinimap}
-            fontSize={editorSettings.fontSize}
-            fontFamily={editorSettings.fontFamily}
+            showLineNumbers={settings.showLineNumbers}
+            showMinimap={settings.showMinimap}
+            fontSize={settings.fontSize}
+            fontFamily={settings.fontFamily}
           />
         )}
       </DetailBody>
