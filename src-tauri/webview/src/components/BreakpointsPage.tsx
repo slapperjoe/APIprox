@@ -44,6 +44,8 @@ export function BreakpointsPage({ initialRule, onInitialRuleConsumed }: {
   const [editingTraffic, setEditingTraffic] = useState<PausedTraffic | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editedBody, setEditedBody] = useState<string>('');
+  const [rawBody, setRawBody] = useState<string>('');
+  const [formattedOriginalBody, setFormattedOriginalBody] = useState<string>('');
   const [editedHeaders, setEditedHeaders] = useState<Record<string, string>>({});
   const [autoTimeoutSecs, setAutoTimeoutSecs] = useState<number>(() => {
     const saved = localStorage.getItem('apiprox-bp-timeout');
@@ -220,6 +222,81 @@ export function BreakpointsPage({ initialRule, onInitialRuleConsumed }: {
     return 'text';
   }
 
+  function getDirectText(el: Element): string {
+    let text = '';
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) text += node.textContent || '';
+    }
+    return text;
+  }
+
+  function collectXmlChanges(
+    orig: Element,
+    edit: Element,
+    changes: Array<{ localName: string; oldText: string; newText: string }>
+  ) {
+    const origText = getDirectText(orig).trim();
+    const editText = getDirectText(edit).trim();
+    if (origText !== editText && origText) {
+      changes.push({ localName: orig.localName, oldText: origText, newText: editText });
+    }
+    const origKids = Array.from(orig.children);
+    const editKids = Array.from(edit.children);
+    for (let i = 0; i < Math.min(origKids.length, editKids.length); i++) {
+      collectXmlChanges(origKids[i], editKids[i], changes);
+    }
+  }
+
+  /** Apply text-node edits made in the formatted view back to the original raw string. */
+  function patchXmlBody(raw: string, fmtOrig: string, fmtEdited: string): string {
+    if (!raw || fmtOrig === fmtEdited) return raw;
+    const parser = new DOMParser();
+    const origDoc = parser.parseFromString(fmtOrig, 'text/xml');
+    const editDoc = parser.parseFromString(fmtEdited, 'text/xml');
+    if (origDoc.querySelector('parsererror') || editDoc.querySelector('parsererror')) {
+      return fmtEdited; // parse failed — send edited as-is
+    }
+    const changes: Array<{ localName: string; oldText: string; newText: string }> = [];
+    collectXmlChanges(origDoc.documentElement, editDoc.documentElement, changes);
+    if (changes.length === 0) return raw;
+    let result = raw;
+    for (const { localName, oldText, newText } of changes) {
+      const escapedOld = oldText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Match >oldText</optional-prefix:localName> in the raw one-liner
+      const re = new RegExp(`(>)${escapedOld}(<\\/[^:>]*:?${localName}>)`, 'g');
+      result = result.replace(re, `$1${newText}$2`);
+    }
+    return result;
+  }
+
+  /** Indent XML for display without stripping any elements. */
+  function formatXmlForDisplay(xml: string): string {
+    if (!xml.trim()) return xml;
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml.trim(), 'text/xml');
+      if (doc.querySelector('parsererror')) return xml;
+      const indent = (node: Node, depth: number): string => {
+        const PAD = '  ';
+        if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').trim();
+        if (node.nodeType !== Node.ELEMENT_NODE) return '';
+        const el = node as Element;
+        const attrs = Array.from(el.attributes).map(a => ` ${a.name}="${a.value}"`).join('');
+        const children = Array.from(el.childNodes);
+        const hasEl = children.some(c => c.nodeType === Node.ELEMENT_NODE);
+        const text = children.filter(c => c.nodeType === Node.TEXT_NODE).map(c => (c.textContent || '').trim()).join('');
+        if (!hasEl && text) return `${PAD.repeat(depth)}<${el.tagName}${attrs}>${text}</${el.tagName}>`;
+        if (!hasEl) return `${PAD.repeat(depth)}<${el.tagName}${attrs}/>`;
+        const inner = children.map(c => indent(c, depth + 1)).filter(s => s.length > 0);
+        return [`${PAD.repeat(depth)}<${el.tagName}${attrs}>`, ...inner, `${PAD.repeat(depth)}</${el.tagName}>`].join('\n');
+      };
+      const declMatch = xml.match(/^<\?xml[^?]*\?>/);
+      return (declMatch ? declMatch[0] + '\n' : '') + indent(doc.documentElement, 0);
+    } catch {
+      return xml;
+    }
+  }
+
   if (isLoading) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -354,7 +431,11 @@ export function BreakpointsPage({ initialRule, onInitialRuleConsumed }: {
                         setEditingTraffic(item);
                         const body = item.pauseType === 'request' ? item.requestBody : (item.responseBody ?? '');
                         const headers = item.pauseType === 'request' ? (item.requestHeaders ?? {}) : (item.responseHeaders ?? {});
-                        setEditedBody(body);
+                        const lang = detectLanguage(headers);
+                        const fmtBody = lang === 'xml' ? formatXmlForDisplay(body) : body;
+                        setRawBody(body);
+                        setFormattedOriginalBody(fmtBody);
+                        setEditedBody(fmtBody);
                         setEditedHeaders({ ...headers });
                       }}
                       style={{
@@ -774,6 +855,7 @@ export function BreakpointsPage({ initialRule, onInitialRuleConsumed }: {
                   value={editedBody}
                   onChange={setEditedBody}
                   language={detectLanguage(editedHeaders)}
+                  autoFormat={false}
                 />
               </div>
             </div>
@@ -810,8 +892,12 @@ export function BreakpointsPage({ initialRule, onInitialRuleConsumed }: {
               </button>
               <button
                 onClick={() => {
+                  const lang = detectLanguage(editedHeaders);
+                  const finalBody = lang === 'xml'
+                    ? patchXmlBody(rawBody, formattedOriginalBody, editedBody)
+                    : editedBody;
                   handleContinue(editingTraffic.id, {
-                    body: editedBody,
+                    body: finalBody,
                     headers: editedHeaders,
                   });
                 }}
