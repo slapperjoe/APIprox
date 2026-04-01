@@ -215,9 +215,13 @@ interface TrafficViewerProps {
   onCreateReplaceRule?: (log: TrafficLog) => void;
   /** Called when user right-clicks → "Create Breakpoint" */
   onCreateBreakpoint?: (log: TrafficLog) => void;
+  /** Called when user right-clicks → "Add to APInox Project..." */
+  onAddToApinoxProject?: (log: TrafficLog) => void;
+  /** Called when user clicks "Clear Traffic" */
+  onClearTraffic?: () => void;
 }
 
-export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnoreRule, onCreateMockRule, onCreateReplaceRule, onCreateBreakpoint }: TrafficViewerProps) {
+export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnoreRule, onCreateMockRule, onCreateReplaceRule, onCreateBreakpoint, onAddToApinoxProject, onClearTraffic }: TrafficViewerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [urlFilter, setUrlFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
@@ -265,6 +269,25 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
         <span style={{ fontSize: tokens.fontSize.base, color: tokens.text.secondary, fontWeight: 500, whiteSpace: 'nowrap' }}>
           Traffic ({filteredLogs.length}{logs.length !== filteredLogs.length ? `/${logs.length}` : ''})
         </span>
+
+        {onClearTraffic && logs.length > 0 && (
+          <button
+            onClick={onClearTraffic}
+            title="Clear all captured traffic"
+            style={{
+              padding: `3px 9px`,
+              background: 'transparent',
+              border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md,
+              color: tokens.text.muted,
+              fontSize: tokens.fontSize.sm,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            🗑 Clear
+          </button>
+        )}
 
         <input
           type="text"
@@ -359,6 +382,7 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
           onCreateMockRule={onCreateMockRule ? (log) => { onCreateMockRule(log); setCtxMenu(null); } : undefined}
           onCreateReplaceRule={onCreateReplaceRule ? (log) => { onCreateReplaceRule(log); setCtxMenu(null); } : undefined}
           onCreateBreakpoint={onCreateBreakpoint ? (log) => { onCreateBreakpoint(log); setCtxMenu(null); } : undefined}
+          onAddToApinoxProject={onAddToApinoxProject ? (log) => { onAddToApinoxProject(log); setCtxMenu(null); } : undefined}
           onClose={() => setCtxMenu(null)}
         />
       )}
@@ -368,13 +392,14 @@ export function TrafficViewer({ logs, onSelectLog, ignoreRules = [], onAddIgnore
 
 // ── TrafficContextMenu ────────────────────────────────────────────────────
 function TrafficContextMenu({
-  x, y, log, onIgnore, onCreateMockRule, onCreateReplaceRule, onCreateBreakpoint, onClose,
+  x, y, log, onIgnore, onCreateMockRule, onCreateReplaceRule, onCreateBreakpoint, onAddToApinoxProject, onClose,
 }: {
   x: number; y: number; log: TrafficLog;
   onIgnore: (mode: 'host' | 'host+path') => void;
   onCreateMockRule?: (log: TrafficLog) => void;
   onCreateReplaceRule?: (log: TrafficLog) => void;
   onCreateBreakpoint?: (log: TrafficLog) => void;
+  onAddToApinoxProject?: (log: TrafficLog) => void;
   onClose: () => void;
 }) {
   const hostPattern     = ignorePatternFor(log.url, 'host');
@@ -382,7 +407,8 @@ function TrafficContextMenu({
 
   // Estimate menu height and flip up if near bottom
   const hasCreate = !!(onCreateMockRule || onCreateReplaceRule || onCreateBreakpoint);
-  const menuH = hasCreate ? 260 : 120;
+  const hasApinox = !!onAddToApinoxProject;
+  const menuH = (hasCreate ? 260 : 0) + (hasApinox ? 55 : 0) + 120;
   const top = y + menuH > window.innerHeight ? y - menuH : y;
 
   return (
@@ -432,6 +458,26 @@ function TrafficContextMenu({
               onClick={() => onCreateBreakpoint(log)}
             />
           )}
+          <div style={{ borderTop: `1px solid ${tokens.border.default}` }} />
+        </>
+      )}
+
+      {/* APInox section */}
+      {hasApinox && (
+        <>
+          <div style={{
+            padding: '6px 12px',
+            background: tokens.surface.elevated,
+            borderBottom: `1px solid ${tokens.border.default}`,
+            fontSize: 10, fontWeight: 600, color: tokens.text.muted,
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>APInox</div>
+          <CtxItem
+            icon="📥"
+            label="Add to APInox Project..."
+            sub="Save request to project workspace"
+            onClick={() => onAddToApinoxProject!(log)}
+          />
           <div style={{ borderTop: `1px solid ${tokens.border.default}` }} />
         </>
       )}
@@ -498,6 +544,33 @@ function extractPath(url: string): string {
   try { const u = new URL(url); return u.pathname + u.search; } catch { return url; }
 }
 
+/**
+ * Extract a SOAP action string for display if the request looks like SOAP.
+ * Priority: SOAPAction header → soapAction header → first Body child element local name.
+ * Returns null if it doesn't appear to be a SOAP request.
+ */
+function extractSoapAction(log: TrafficLog): string | null {
+  const headers = log.requestHeaders ?? {};
+  // Check SOAPAction header (case-insensitive key lookup)
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === 'soapaction') {
+      const val = (headers[key] as string).replace(/"/g, '').trim();
+      if (val) {
+        // If it's a URI, return just the fragment/last segment
+        const hash = val.lastIndexOf('#');
+        const slash = val.lastIndexOf('/');
+        const idx = Math.max(hash, slash);
+        return idx >= 0 && idx < val.length - 1 ? val.slice(idx + 1) : val;
+      }
+    }
+  }
+  // Fallback: try to find the operation name from the XML body
+  const body = log.requestBody ?? '';
+  if (!body.trim().startsWith('<') || !body.includes('Body')) return null;
+  const match = body.match(/<(?:[a-zA-Z0-9_]+:)?Body[^>]*>\s*<(?:[a-zA-Z0-9_]+:)?([a-zA-Z0-9_]+)/);
+  return match ? match[1] : null;
+}
+
 function methodBg(method: string): string {
   switch (method.toUpperCase()) {
     case 'GET':    return '#1a5c2a';
@@ -526,6 +599,7 @@ function TrafficRow({ log, isSelected, onClick, onContextMenu }: {
   const [hovered, setHovered] = useState(false);
   const ss = statusStyle(log.status);
   const path = extractPath(log.url);
+  const soapAction = extractSoapAction(log);
   return (
     <div
       onClick={() => onClick(log)}      onContextMenu={(e) => onContextMenu(e, log)}      onMouseEnter={() => setHovered(true)}
@@ -539,7 +613,7 @@ function TrafficRow({ log, isSelected, onClick, onContextMenu }: {
       }}
     >
       {/* Line 1: method badge + path (no hostname) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: soapAction ? 2 : 4 }}>
         <span style={{
           fontSize: 10, fontWeight: 700, padding: '1px 6px',
           borderRadius: 3, fontFamily: 'monospace', flexShrink: 0,
@@ -559,7 +633,23 @@ function TrafficRow({ log, isSelected, onClick, onContextMenu }: {
           {path}
         </span>
       </div>
-      {/* Line 2: time + status chip + duration */}
+      {/* Line 2 (optional): SOAP action */}
+      {soapAction && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '1px 6px',
+            borderRadius: 3, flexShrink: 0,
+            background: 'rgba(120,80,200,0.18)', color: '#b89ee8',
+            border: '1px solid rgba(120,80,200,0.35)',
+            fontFamily: 'monospace',
+          }}>SOAP</span>
+          <span style={{
+            fontSize: 11, color: '#b89ee8', fontFamily: 'monospace',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
+          }}>{soapAction}</span>
+        </div>
+      )}
+      {/* Line 3: time + status chip + duration */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span style={{ fontSize: 10, color: tokens.text.hint, flexShrink: 0 }}>
           {new Date(log.timestamp).toLocaleTimeString()}

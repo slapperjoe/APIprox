@@ -15,6 +15,7 @@ import { HelpPage } from './components/HelpPage';
 import { TrafficLog } from './types';
 import { tokens } from './styles/tokens';
 import { useIgnoreList } from './utils/useIgnoreList';
+import { bridge } from './utils/bridge';
 import { ConditionPickerModal, suggestConditionsFromSoapXml, SuggestedCondition } from './components/ConditionPickerModel';
 
 type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
@@ -133,6 +134,20 @@ function App() {
       xpath: '',
     });
     setActiveTab('rules');
+  }
+
+  async function handleAddToApinoxProject(log: TrafficLog) {
+    try {
+      const message = await bridge.addTrafficToApinox(log);
+      alert(message);
+    } catch (err: any) {
+      alert(`Failed to save to APInox:\n${err?.message ?? err}`);
+    }
+  }
+
+  function handleClearTraffic() {
+    setTrafficLogs([]);
+    setSelectedLog(null);
   }
 
   // Resizable traffic sidebar
@@ -358,6 +373,8 @@ function App() {
               onCreateMockRule={handleCreateMockRule}
               onCreateReplaceRule={handleCreateReplaceRule}
               onCreateBreakpoint={handleCreateBreakpoint}
+              onAddToApinoxProject={handleAddToApinoxProject}
+              onClearTraffic={handleClearTraffic}
             />
           </div>
 

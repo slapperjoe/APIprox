@@ -217,4 +217,12 @@ export const bridge = {
   async clearSystemProxy(): Promise<void> {
     return invoke('clear_system_proxy');
   },
+
+  // ── APInox integration ─────────────────────────────────────────────
+
+  /** Save a captured traffic log entry to ~/.apinox/projects/APIprox Captures/.
+   *  Returns a human-readable confirmation message. */
+  async addTrafficToApinox(log: object): Promise<string> {
+    return invoke('add_traffic_to_apinox', { log });
+  },
 };

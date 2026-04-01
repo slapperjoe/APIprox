@@ -39,11 +39,39 @@ pub fn run() {
         .setup(|app| {
             info!("APIprox starting (version: {})", app.package_info().version);
 
-            // Resolve ~/.apiprox config directory
+            // Config directory: ~/.apinox (shared with APInox companion app).
+            // On first run after upgrade from the old ~/.apiprox location, migrate
+            // all existing files across so no rules are lost.
             let config_dir = dirs_next::home_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join(".apiprox");
+                .join(".apinox");
             std::fs::create_dir_all(&config_dir).ok();
+
+            // ── One-time migration from legacy ~/.apiprox/ ───────────────────
+            let legacy_dir = dirs_next::home_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join(".apiprox");
+            if legacy_dir.exists() && legacy_dir != config_dir {
+                let files_to_migrate = [
+                    "mock-rules.json",
+                    "replace-rules.json",
+                    "breakpoint-rules.json",
+                    "file-watches.json",
+                    "ca.key",
+                    "ca.crt",
+                ];
+                for filename in &files_to_migrate {
+                    let src = legacy_dir.join(filename);
+                    let dst = config_dir.join(filename);
+                    if src.exists() && !dst.exists() {
+                        if let Err(e) = std::fs::copy(&src, &dst) {
+                            log::warn!("[Setup] Failed to migrate {:?}: {}", filename, e);
+                        } else {
+                            log::info!("[Setup] Migrated {:?} from ~/.apiprox to ~/.apinox", filename);
+                        }
+                    }
+                }
+            }
 
             let storage = Arc::new(RulesStorage::new(config_dir.clone()));
 
@@ -170,6 +198,8 @@ pub fn run() {
             commands::sniffer::get_system_proxy_status,
             commands::sniffer::set_system_proxy,
             commands::sniffer::clear_system_proxy,
+            // APInox bridge
+            commands::apinox_bridge::add_traffic_to_apinox,
         ])
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::Destroyed = event {
