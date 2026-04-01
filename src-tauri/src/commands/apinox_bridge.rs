@@ -1,12 +1,117 @@
 /// APInox bridge — Tauri commands for cross-app integration.
 ///
-/// Writes captured traffic directly into a dedicated APInox project
-/// (`~/.apinox/projects/APIprox Captures/`) that APInox auto-loads on startup.
-/// No folder picker needed — works silently in the background.
+/// 1. Writes captured traffic into `~/.apinox/projects/APIprox Captures/`.
+/// 2. Auto-syncs the APInox `network.proxy` setting so APInox routes through
+///    the running APIprox proxy without any manual configuration.
 
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APInox proxy-config sync
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Returns `~/.apinox/config.jsonc`.
+fn apinox_config_path() -> Result<PathBuf, String> {
+    let home = dirs_next::home_dir()
+        .ok_or_else(|| "Cannot determine home directory".to_string())?;
+    Ok(home.join(".apinox").join("config.jsonc"))
+}
+
+/// Patch `network.proxy` in `~/.apinox/config.jsonc` to `http://127.0.0.1:{port}`.
+///
+/// The file is parsed as JSON (JSONC comments are stripped by ignoring lines
+/// that start with `//`), modified, then written back as plain JSON.  Existing
+/// comments in the file will be lost on the next write — that is acceptable
+/// because APInox's `save_config` also writes plain JSON, not JSONC.
+#[tauri::command]
+pub async fn sync_apinox_proxy(port: u16) -> Result<(), String> {
+    let path = apinox_config_path()?;
+
+    let mut config: Value = if path.exists() {
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read APInox config: {}", e))?;
+        // Strip single-line comments before parsing
+        let stripped: String = raw
+            .lines()
+            .map(|l| {
+                if let Some(pos) = l.find("//") {
+                    // Only strip if not inside a string — simple heuristic: no '"' before '//'
+                    if !l[..pos].contains('"') {
+                        return l[..pos].to_string();
+                    }
+                }
+                l.to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        serde_json::from_str(&stripped).unwrap_or(json!({}))
+    } else {
+        json!({})
+    };
+
+    let proxy_url = format!("http://127.0.0.1:{}", port);
+
+    // Ensure network object exists
+    if !config["network"].is_object() {
+        config["network"] = json!({});
+    }
+    config["network"]["proxy"] = Value::String(proxy_url.clone());
+
+    let out = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialise APInox config: {}", e))?;
+
+    // Create parent dir if needed
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create .apinox directory: {}", e))?;
+    }
+
+    std::fs::write(&path, out)
+        .map_err(|e| format!("Failed to write APInox config: {}", e))?;
+
+    log::info!("[APInox Bridge] Set network.proxy = {}", proxy_url);
+    Ok(())
+}
+
+/// Clear `network.proxy` in `~/.apinox/config.jsonc` (set to empty string).
+#[tauri::command]
+pub async fn clear_apinox_proxy() -> Result<(), String> {
+    let path = apinox_config_path()?;
+    if !path.exists() {
+        return Ok(()); // Nothing to clear
+    }
+
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read APInox config: {}", e))?;
+    let stripped: String = raw
+        .lines()
+        .map(|l| {
+            if let Some(pos) = l.find("//") {
+                if !l[..pos].contains('"') {
+                    return l[..pos].to_string();
+                }
+            }
+            l.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let mut config: Value = serde_json::from_str(&stripped).unwrap_or(json!({}));
+
+    if config["network"].is_object() {
+        config["network"]["proxy"] = Value::String(String::new());
+    }
+
+    let out = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialise APInox config: {}", e))?;
+    std::fs::write(&path, out)
+        .map_err(|e| format!("Failed to write APInox config: {}", e))?;
+
+    log::info!("[APInox Bridge] Cleared network.proxy");
+    Ok(())
+}
 
 const CAPTURED_PROJECT_NAME: &str = "APIprox Captures";
 const CAPTURED_FOLDER_NAME: &str = "Captured Traffic";

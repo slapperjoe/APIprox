@@ -225,4 +225,14 @@ export const bridge = {
   async addTrafficToApinox(log: object): Promise<string> {
     return invoke('add_traffic_to_apinox', { log });
   },
+
+  /** Set network.proxy in ~/.apinox/config.jsonc to http://127.0.0.1:{port}. */
+  async syncApinoxProxy(port: number): Promise<void> {
+    return invoke('sync_apinox_proxy', { port });
+  },
+
+  /** Clear network.proxy in ~/.apinox/config.jsonc (set to empty string). */
+  async clearApinoxProxy(): Promise<void> {
+    return invoke('clear_apinox_proxy');
+  },
 };

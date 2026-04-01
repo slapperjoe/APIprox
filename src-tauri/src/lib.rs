@@ -200,6 +200,8 @@ pub fn run() {
             commands::sniffer::clear_system_proxy,
             // APInox bridge
             commands::apinox_bridge::add_traffic_to_apinox,
+            commands::apinox_bridge::sync_apinox_proxy,
+            commands::apinox_bridge::clear_apinox_proxy,
         ])
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::Destroyed = event {

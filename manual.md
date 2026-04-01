@@ -142,13 +142,30 @@ Response Body:
 | Mock not matching | Check rule is enabled and URL matches |
 | Connection refused | Verify server is running and port is correct |
 
+## APInox Integration
+
+APIprox and APInox share the `~/.apinox/` directory and integrate in two ways:
+
+### Auto-sync proxy config
+
+When **Settings → Auto-update APInox proxy config** is enabled (default: on), APIprox automatically sets `network.proxy` in `~/.apinox/config.jsonc` to `http://127.0.0.1:<port>` whenever the proxy starts, and clears it when the proxy stops. APInox picks this up on next request, routing all APInox traffic through the running APIprox proxy.
+
+Toggle this in **Settings → APInox Integration**.
+
+### Captured traffic project
+
+Right-click any traffic entry and choose **Save to APInox** to push it into the `APIprox Captures` project inside APInox's project library (`~/.apinox/projects/APIprox Captures/`). APInox auto-loads this project on startup — no file picker required.
+
 ## Configuration Files
 
-- **Mock Rules**: `~/.apiprox/mock-rules.json`
-- **Replace Rules**: `~/.apiprox/replace-rules.json`
-- **Breakpoint Rules**: `~/.apiprox/breakpoint-rules.json`
-- **CA Certificate**: `~/.apiprox/ca.cer`
-- **CA Private Key**: `~/.apiprox/ca.key`
+All stored in `~/.apinox/` (shared with APInox):
+
+- **mock-rules.json** — Mock rule definitions
+- **replace-rules.json** — Replace rule definitions
+- **breakpoint-rules.json** — Breakpoint rule definitions
+- **file-watches.json** — File watcher configurations
+- **ca.crt** / **ca.key** — CA certificate and private key
+- **config.jsonc** — APInox app settings (proxy config written here by APIprox)
 
 ## Tips
 
@@ -158,6 +175,7 @@ Response Body:
 ✓ Clear traffic logs regularly  
 ✓ Export certificate before regenerating  
 ✓ Disable rules when not needed  
+✓ Keep **Auto-update APInox proxy config** on to route APInox traffic through APIprox without any manual setup  
 
 ## Security Notes
 

@@ -102,6 +102,13 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
       setProxyEnabled(true);
       onStatusChange?.({ running: true, port: proxyPort, mode });
 
+      // Sync APInox proxy config if the setting is enabled
+      if (localStorage.getItem('apiprox-sync-apinox-proxy') !== 'false') {
+        bridge.syncApinoxProxy(proxyPort).catch(err =>
+          console.warn('[APInox Bridge] Failed to sync proxy config:', err)
+        );
+      }
+
       // Sniffer modes also set the OS system proxy automatically
       if (isSniffer) {
         setSysProxyLoading(true);
@@ -146,6 +153,13 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
       await bridge.stopProxy();
       setProxyEnabled(false);
       onStatusChange?.({ running: false, port: proxyPort, mode });
+
+      // Clear APInox proxy config if the setting is enabled
+      if (localStorage.getItem('apiprox-sync-apinox-proxy') !== 'false') {
+        bridge.clearApinoxProxy().catch(err =>
+          console.warn('[APInox Bridge] Failed to clear proxy config:', err)
+        );
+      }
     } catch (err: any) {
       setError(err.message || String(err) || 'Failed to stop proxy');
     } finally {

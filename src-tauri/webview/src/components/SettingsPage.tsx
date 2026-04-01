@@ -16,6 +16,14 @@ export function SettingsPage({ ignoreRules, onRemoveIgnoreRule, onAddIgnoreRule 
   const [defaultPort, setDefaultPort] = useState(8888);
   const [appVersion, setAppVersion] = useState<string>('...');
   const [testStatus, setTestStatus] = useState<string | null>(null);
+  const [syncApinoxProxy, setSyncApinoxProxyState] = useState<boolean>(
+    () => localStorage.getItem('apiprox-sync-apinox-proxy') !== 'false'
+  );
+
+  function setSyncApinoxProxy(val: boolean) {
+    setSyncApinoxProxyState(val);
+    localStorage.setItem('apiprox-sync-apinox-proxy', String(val));
+  }
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => setAppVersion('unknown'));
@@ -148,10 +156,30 @@ export function SettingsPage({ ignoreRules, onRemoveIgnoreRule, onAddIgnoreRule 
         )}
       </div>
 
+      {/* APInox Integration */}
+      <div style={sectionStyle}>
+        <h3 style={sectionHeadStyle}>APInox Integration</h3>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={syncApinoxProxy}
+            onChange={(e) => setSyncApinoxProxy(e.target.checked)}
+            style={{ width: '16px', height: '16px' }}
+          />
+          <div>
+            <div style={{ fontSize: tokens.fontSize.base }}>Auto-update APInox proxy config</div>
+            <div style={{ fontSize: tokens.fontSize.sm, color: tokens.text.muted, marginTop: '2px' }}>
+              When the proxy starts, automatically set <code style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>network.proxy</code> in{' '}
+              <code style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>~/.apinox/config.jsonc</code> so APInox routes requests through APIprox.
+              Clears the setting when the proxy stops.
+            </div>
+          </div>
+        </label>
+      </div>
+
       {/* Certificate Management */}
       <div style={{ marginBottom: '16px' }}>
-        <h3 style={{ ...sectionHeadStyle, paddingLeft: '4px', marginBottom: '12px' }}>Certificate Management</h3>
-        <CertificateManager />
+        <h3 style={{ ...sectionHeadStyle, paddingLeft: '4px', marginBottom: '12px' }}>Certificate Management</h3>        <CertificateManager />
       </div>
 
       {/* Traffic Ignore List */}
