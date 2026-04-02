@@ -101,7 +101,11 @@ export function SettingsPage({ ignoreRules, onRemoveIgnoreRule, onAddIgnoreRule 
             <input
               type="number"
               value={defaultPort}
-              onChange={(e) => setDefaultPort(parseInt(e.target.value))}
+              onChange={(e) => {
+              const v = parseInt(e.target.value);
+              setDefaultPort(v);
+              localStorage.setItem('apiprox-default-port', String(v));
+            }}
               style={{
                 width: '100px',
                 padding: '8px 12px',
@@ -197,7 +201,7 @@ export function SettingsPage({ ignoreRules, onRemoveIgnoreRule, onAddIgnoreRule 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
             onClick={sendTestRequests}
-            disabled={testStatus === 'Sending...'}
+            disabled={testStatus === 'Sending…'}
             style={{
               padding: '7px 16px',
               background: tokens.surface.input,
@@ -205,8 +209,8 @@ export function SettingsPage({ ignoreRules, onRemoveIgnoreRule, onAddIgnoreRule 
               borderRadius: tokens.radius.md,
               color: tokens.text.secondary,
               fontSize: tokens.fontSize.sm,
-              cursor: testStatus === 'Sending...' ? 'wait' : 'pointer',
-              opacity: testStatus === 'Sending...' ? 0.7 : 1,
+              cursor: testStatus === 'Sending…' ? 'wait' : 'pointer',
+              opacity: testStatus === 'Sending…' ? 0.7 : 1,
             }}
           >
             Send Test Requests

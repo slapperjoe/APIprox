@@ -19,6 +19,24 @@ fn apinox_config_path() -> Result<PathBuf, String> {
     Ok(home.join(".apinox").join("config.jsonc"))
 }
 
+/// Strip single-line `//` comments from a JSONC string.
+///
+/// Uses a simple heuristic: only strips when there is no `"` before the `//`
+/// on the same line (i.e. not inside a string value).
+fn strip_jsonc_comments(raw: &str) -> String {
+    raw.lines()
+        .map(|l| {
+            if let Some(pos) = l.find("//") {
+                if !l[..pos].contains('"') {
+                    return l[..pos].to_string();
+                }
+            }
+            l.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Patch `network.proxy` in `~/.apinox/config.jsonc` to `http://127.0.0.1:{port}`.
 ///
 /// The file is parsed as JSON (JSONC comments are stripped by ignoring lines
@@ -32,21 +50,7 @@ pub async fn sync_apinox_proxy(port: u16) -> Result<(), String> {
     let mut config: Value = if path.exists() {
         let raw = std::fs::read_to_string(&path)
             .map_err(|e| format!("Failed to read APInox config: {}", e))?;
-        // Strip single-line comments before parsing
-        let stripped: String = raw
-            .lines()
-            .map(|l| {
-                if let Some(pos) = l.find("//") {
-                    // Only strip if not inside a string — simple heuristic: no '"' before '//'
-                    if !l[..pos].contains('"') {
-                        return l[..pos].to_string();
-                    }
-                }
-                l.to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        serde_json::from_str(&stripped).unwrap_or(json!({}))
+        serde_json::from_str(&strip_jsonc_comments(&raw)).unwrap_or(json!({}))
     } else {
         json!({})
     };
@@ -85,20 +89,8 @@ pub async fn clear_apinox_proxy() -> Result<(), String> {
 
     let raw = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read APInox config: {}", e))?;
-    let stripped: String = raw
-        .lines()
-        .map(|l| {
-            if let Some(pos) = l.find("//") {
-                if !l[..pos].contains('"') {
-                    return l[..pos].to_string();
-                }
-            }
-            l.to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
 
-    let mut config: Value = serde_json::from_str(&stripped).unwrap_or(json!({}));
+    let mut config: Value = serde_json::from_str(&strip_jsonc_comments(&raw)).unwrap_or(json!({}));
 
     if config["network"].is_object() {
         config["network"]["proxy"] = Value::String(String::new());

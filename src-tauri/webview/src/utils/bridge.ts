@@ -195,11 +195,6 @@ export const bridge = {
     return invoke('delete_file_watch', { id });
   },
 
-  /** @deprecated Pairs are now driven by real-time watcher-soap-event. Returns empty array. */
-  async getFileWatchEvents(limit?: number): Promise<any> {
-    return invoke('get_watcher_events', { limit: limit ?? null });
-  },
-
   /** Clears all in-memory pair history on the Rust side. */
   async clearFileWatchEvents(): Promise<any> {
     return invoke('clear_watcher_events');

@@ -13,7 +13,9 @@ interface ServerControlProps {
 
 export function ServerControl({ onStatusChange }: ServerControlProps) {
   const [proxyEnabled, setProxyEnabled] = useState(false);
-  const [proxyPort, setProxyPort] = useState(8888);
+  const [proxyPort, setProxyPort] = useState<number>(
+    () => parseInt(localStorage.getItem('apiprox-default-port') ?? '8888')
+  );
   const [targetUrl, setTargetUrl] = useState('http://localhost:3000');
   // Mode is a frontend concept — backend only knows 'proxy'/'mock'/'both'.
   // Persist to localStorage so it survives app restarts.

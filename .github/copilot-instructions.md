@@ -47,7 +47,7 @@ npm run tauri:build
 - `file-watches.json` — File watcher configurations
 - `ca.key` / `ca.crt` — Generated CA certificate
 
-**Tauri stores app preferences via:** `tauri-plugin-store` (stored in platform app data dir)
+Simple UI preferences (e.g. port numbers) are persisted via `localStorage` in the webview.
 
 ### Communication Between Webview and Rust
 
@@ -178,11 +178,10 @@ APIprox is designed to work alongside APInox (SOAP API testing tool). The webvie
 **Plugins Used:**
 - `tauri-plugin-log` - Logging
 - `tauri-plugin-dialog` - File dialogs
-- `tauri-plugin-clipboard-manager` - Clipboard access
-- `tauri-plugin-store` - Persistent key-value storage
 - `tauri-plugin-opener` - Open URLs/files
 - `tauri-plugin-shell` - Shell command execution
 - `tauri-plugin-process` - Process management
+- `tauri-plugin-os` - OS detection
 
 ## Testing
 
@@ -194,8 +193,18 @@ No automated test suite currently exists. Manual testing workflow:
 5. Test replace rules with XML traffic
 6. Verify breakpoints pause traffic as expected
 
-## Common Development Tasks
+## Build Warnings Policy
 
+**Always fix build warnings — never leave them in, regardless of origin.**
+
+- After any code change, run `cargo build` (Rust) and `npm run build` (webview) and check for warnings
+- Fix every warning that appears in output you can see, even if the warning pre-dates your change
+- In Rust: address `unused import`, `dead_code`, `unused variable`, `deprecated`, and clippy lints
+- In TypeScript/React: address unused variable, unreachable code, and missing dependency warnings
+- Do not use `#[allow(...)]` or `// @ts-ignore` to suppress warnings unless the suppression is genuinely justified and accompanied by an explanatory comment
+- A clean build (zero warnings) is the expected baseline state
+
+## Common Development Tasks
 
 ### Adding a New Backend Feature
 

@@ -22,8 +22,6 @@
       "allow": ["resource", "app-config", "app-data", "app-local-data"]
     },
     "dialog:default",
-    "clipboard-manager:default",
-    "store:default",
     "opener:default",
     "shell:default",
     "process:default"

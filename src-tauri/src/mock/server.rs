@@ -223,7 +223,7 @@ async fn passthrough(
     };
 
     if record_mode {
-        record_response(state, &method, &url, &req_headers, &req_body, status, &resp_headers, &resp_body).await;
+        record_response(state, &method, &url, status, &resp_headers, &resp_body).await;
     }
 
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -266,8 +266,6 @@ async fn record_response(
     state: SharedMockState,
     method: &str,
     url: &str,
-    _req_headers: &HashMap<String, String>,
-    _req_body: &str,
     status: u16,
     resp_headers: &HashMap<String, String>,
     resp_body: &str,

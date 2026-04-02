@@ -29,9 +29,8 @@ pub async fn add_breakpoint_rule(
         rule
     };
     let mut svc = state.breakpoint.lock().await;
-    let mut rules = svc.get_rules();
-    rules.push(rule.clone());
-    svc.set_rules(rules.clone());
+    svc.add_rule(rule.clone());
+    let rules = svc.get_rules();
     drop(svc);
     state.storage.save_breakpoint_rules(&rules).map_err(|e| e.to_string())?;
     Ok(rule)
