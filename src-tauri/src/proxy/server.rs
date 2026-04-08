@@ -155,7 +155,7 @@ async fn handle_connect(
                             let mock_state = mock_state.clone();
                             let breakpoints = breakpoints.clone();
                             async move {
-                                let req = rewrite_to_https(inner_req, &hostname, config.port);
+                                let req = rewrite_to_https(inner_req, &hostname);
                                 Ok::<_, Infallible>(
                                     handle_http(req, config, replacer, app, mock_state, breakpoints).await,
                                 )
@@ -195,7 +195,6 @@ async fn handle_connect(
 fn rewrite_to_https(
     req: Request<Incoming>,
     hostname: &str,
-    _proxy_port: u16,
 ) -> Request<Incoming> {
     let pq = req
         .uri()
@@ -253,7 +252,7 @@ async fn handle_http(
     // Check mock rules when mode includes mock matching ("both" or "mock").
     let mode = config.mode.as_str();
     if mode == "both" || mode == "mock" {
-        let (rules, _passthrough, _target) = {
+        let (rules, _, _) = {
             let ms = mock_state.lock().await;
             (ms.config.rules.clone(), ms.config.passthrough_enabled, ms.config.target_url.clone())
         };

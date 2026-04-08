@@ -81,11 +81,6 @@ impl ReplacerService {
         self.apply_to(text, "response")
     }
 
-    /// Convenience wrapper — applies rules targeting "both".
-    #[allow(dead_code)]
-    pub fn apply(&self, text: &str) -> String {
-        self.apply_to(text, "both")
-    }
 }
 
 fn apply_rule(text: &str, rule: &ReplaceRule) -> String {

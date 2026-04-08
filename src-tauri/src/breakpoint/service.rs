@@ -39,6 +39,10 @@ impl BreakpointService {
         self.rules = rules;
     }
 
+    pub fn add_rule(&mut self, rule: BreakpointRule) {
+        self.rules.push(rule);
+    }
+
     pub fn get_paused_traffic(&self) -> Vec<PausedTraffic> {
         self.pending.values().map(|p| p.info.clone()).collect()
     }

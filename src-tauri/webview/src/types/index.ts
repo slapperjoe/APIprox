@@ -11,12 +11,6 @@ export interface TrafficLog {
   duration?: number;
 }
 
-export interface ProxyConfig {
-  port: number;
-  mode: 'off' | 'proxy' | 'mock' | 'both';
-  httpsEnabled: boolean;
-}
-
 export interface ReplaceRule {
   id: string;
   name: string;
@@ -25,21 +19,5 @@ export interface ReplaceRule {
   matchText: string;
   replaceWith: string;
   target: 'request' | 'response' | 'both';
-  isRegex: boolean;
-}
-
-export interface MockRule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  conditions: MockCondition[];
-  statusCode: number;
-  responseBody: string;
-  delayMs?: number;
-}
-
-export interface MockCondition {
-  type: 'url' | 'xpath' | 'method';
-  pattern: string;
   isRegex: boolean;
 }

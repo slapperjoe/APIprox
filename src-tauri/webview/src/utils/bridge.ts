@@ -195,11 +195,6 @@ export const bridge = {
     return invoke('delete_file_watch', { id });
   },
 
-  /** @deprecated Pairs are now driven by real-time watcher-soap-event. Returns empty array. */
-  async getFileWatchEvents(limit?: number): Promise<any> {
-    return invoke('get_watcher_events', { limit: limit ?? null });
-  },
-
   /** Clears all in-memory pair history on the Rust side. */
   async clearFileWatchEvents(): Promise<any> {
     return invoke('clear_watcher_events');
@@ -216,5 +211,23 @@ export const bridge = {
 
   async clearSystemProxy(): Promise<void> {
     return invoke('clear_system_proxy');
+  },
+
+  // ── APInox integration ─────────────────────────────────────────────
+
+  /** Save a captured traffic log entry to ~/.apinox/projects/APIprox Captures/.
+   *  Returns a human-readable confirmation message. */
+  async addTrafficToApinox(log: object): Promise<string> {
+    return invoke('add_traffic_to_apinox', { log });
+  },
+
+  /** Set network.proxy in ~/.apinox/config.jsonc to http://127.0.0.1:{port}. */
+  async syncApinoxProxy(port: number): Promise<void> {
+    return invoke('sync_apinox_proxy', { port });
+  },
+
+  /** Clear network.proxy in ~/.apinox/config.jsonc (set to empty string). */
+  async clearApinoxProxy(): Promise<void> {
+    return invoke('clear_apinox_proxy');
   },
 };

@@ -59,10 +59,5 @@ export function useIgnoreList() {
     });
   }, []);
 
-  const replaceRules = useCallback((next: IgnoreRule[]) => {
-    persist(next);
-    setRules(next);
-  }, []);
-
-  return { rules, addRule, removeRule, replaceRules };
+  return { rules, addRule, removeRule };
 }

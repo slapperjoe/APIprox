@@ -15,6 +15,7 @@ import { HelpPage } from './components/HelpPage';
 import { TrafficLog } from './types';
 import { tokens } from './styles/tokens';
 import { useIgnoreList } from './utils/useIgnoreList';
+import { bridge } from './utils/bridge';
 import { ConditionPickerModal, suggestConditionsFromSoapXml, SuggestedCondition } from './components/ConditionPickerModel';
 
 type Tab = 'proxy' | 'traffic' | 'rules' | 'mock' | 'breakpoints' | 'filewatcher' | 'settings' | 'help';
@@ -135,6 +136,20 @@ function App() {
     setActiveTab('rules');
   }
 
+  async function handleAddToApinoxProject(log: TrafficLog) {
+    try {
+      const message = await bridge.addTrafficToApinox(log);
+      alert(message);
+    } catch (err: any) {
+      alert(`Failed to save to APInox:\n${err?.message ?? err}`);
+    }
+  }
+
+  function handleClearTraffic() {
+    setTrafficLogs([]);
+    setSelectedLog(null);
+  }
+
   // Resizable traffic sidebar
   const [sidebarWidth, setSidebarWidth] = useState(360);
   const sidebarDragging = useRef(false);
@@ -160,12 +175,9 @@ function App() {
   useEffect(() => {
     const appWindow = getCurrentWindow();
     if (pausedCount > 0 && !isFocused) {
-      console.warn('[APIprox] requestUserAttention(Critical) — pausedCount:', pausedCount, 'isFocused:', isFocused);
       appWindow.requestUserAttention(UserAttentionType.Critical)
-        .then(() => console.info('[APIprox] requestUserAttention(Critical) succeeded'))
         .catch((err) => console.error('[APIprox] requestUserAttention(Critical) failed:', err));
     } else {
-      console.info('[APIprox] requestUserAttention(null) — cancelling attention. pausedCount:', pausedCount, 'isFocused:', isFocused);
       appWindow.requestUserAttention(null)
         .catch((err) => console.error('[APIprox] requestUserAttention(null) failed:', err));
     }
@@ -201,10 +213,8 @@ function App() {
       }
     }
     // Set both: Tauri setTitle (Windows/macOS) and document.title (Linux/WebKit2GTK)
-    console.info('[APIprox] setTitle attempt:', title, 'platformOS:', platformOS);
     document.title = title;
     appWindow.setTitle(title)
-      .then(() => console.info('[APIprox] setTitle resolved OK'))
       .catch((err) => console.error('[APIprox] setTitle failed:', err, 'title was:', title));
   }, [proxyEnabled, proxyStatus, platformOS, appVersion]);
 
@@ -358,6 +368,8 @@ function App() {
               onCreateMockRule={handleCreateMockRule}
               onCreateReplaceRule={handleCreateReplaceRule}
               onCreateBreakpoint={handleCreateBreakpoint}
+              onAddToApinoxProject={handleAddToApinoxProject}
+              onClearTraffic={handleClearTraffic}
             />
           </div>
 

@@ -165,15 +165,30 @@ Watch directories for XML request/response file pairs and view them side by side
 | Connection refused | Verify server is running and port is correct |
 | Breakpoint not triggering | Ensure proxy is running and breakpoint rule is enabled |
 
+## APInox Integration
+
+APIprox and APInox share the `~/.apinox/` directory and integrate in two ways:
+
+### Auto-sync proxy config
+
+When **Settings → Auto-update APInox proxy config** is enabled (default: on), APIprox automatically sets `network.proxy` in `~/.apinox/config.jsonc` to `http://127.0.0.1:<port>` whenever the proxy starts, and clears it when the proxy stops. APInox picks this up on next request, routing all APInox traffic through the running APIprox proxy.
+
+Toggle this in **Settings → APInox Integration**.
+
+### Captured traffic project
+
+Right-click any traffic entry and choose **Save to APInox** to push it into the `APIprox Captures` project inside APInox's project library (`~/.apinox/projects/APIprox Captures/`). APInox auto-loads this project on startup — no file picker required.
+
 ## Configuration Files
 
-All stored in `~/.apiprox/`:
+All stored in `~/.apinox/` (shared with APInox):
 
 - **mock-rules.json** — Mock rule definitions
 - **replace-rules.json** — Replace rule definitions
 - **breakpoint-rules.json** — Breakpoint rule definitions
 - **file-watches.json** — File watcher configurations
 - **ca.crt** / **ca.key** — CA certificate and private key
+- **config.jsonc** — APInox app settings (proxy config written here by APIprox)
 
 ## Tips
 
@@ -183,6 +198,7 @@ All stored in `~/.apiprox/`:
 ✓ Export certificate before regenerating  
 ✓ Disable rules when not needed  
 ✓ Use Both mode to mock only specific endpoints  
+✓ Keep **Auto-update APInox proxy config** on to route APInox traffic through APIprox without any manual setup  
 
 ## Security Notes
 

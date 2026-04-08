@@ -13,7 +13,9 @@ interface ServerControlProps {
 
 export function ServerControl({ onStatusChange }: ServerControlProps) {
   const [proxyEnabled, setProxyEnabled] = useState(false);
-  const [proxyPort, setProxyPort] = useState(8888);
+  const [proxyPort, setProxyPort] = useState<number>(
+    () => parseInt(localStorage.getItem('apiprox-default-port') ?? '8888')
+  );
   const [targetUrl, setTargetUrl] = useState('http://localhost:3000');
   // Mode is a frontend concept — backend only knows 'proxy'/'mock'/'both'.
   // Persist to localStorage so it survives app restarts.
@@ -102,6 +104,13 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
       setProxyEnabled(true);
       onStatusChange?.({ running: true, port: proxyPort, mode });
 
+      // Sync APInox proxy config if the setting is enabled
+      if (localStorage.getItem('apiprox-sync-apinox-proxy') !== 'false') {
+        bridge.syncApinoxProxy(proxyPort).catch(err =>
+          console.warn('[APInox Bridge] Failed to sync proxy config:', err)
+        );
+      }
+
       // Sniffer modes also set the OS system proxy automatically
       if (isSniffer) {
         setSysProxyLoading(true);
@@ -146,6 +155,13 @@ export function ServerControl({ onStatusChange }: ServerControlProps) {
       await bridge.stopProxy();
       setProxyEnabled(false);
       onStatusChange?.({ running: false, port: proxyPort, mode });
+
+      // Clear APInox proxy config if the setting is enabled
+      if (localStorage.getItem('apiprox-sync-apinox-proxy') !== 'false') {
+        bridge.clearApinoxProxy().catch(err =>
+          console.warn('[APInox Bridge] Failed to clear proxy config:', err)
+        );
+      }
     } catch (err: any) {
       setError(err.message || String(err) || 'Failed to stop proxy');
     } finally {
